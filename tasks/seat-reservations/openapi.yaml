@@ -1,0 +1,172 @@
+openapi: 3.0.3
+info:
+  title: Seat Reservation Hold API
+  version: 1.0.0
+servers:
+  - url: http://localhost:{port}/api
+    variables:
+      port:
+        default: "3137"
+paths:
+  /health-check:
+    get:
+      responses:
+        "200": { description: Server is healthy. }
+  /users:
+    post:
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                username: { type: string, minLength: 1 }
+              required: [username]
+      responses:
+        "201": { description: User created. }
+        "400": { description: Invalid request. }
+        "409": { description: Duplicate username. }
+  /events:
+    post:
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/EventCreate"
+      responses:
+        "201": { description: Event created. }
+        "400": { description: Invalid request. }
+        "409": { description: Duplicate event code. }
+  /holds:
+    post:
+      security:
+        - Token: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/HoldCreate"
+      responses:
+        "201": { description: Hold created. }
+        "200": { description: Existing idempotent hold returned. }
+        "400": { description: Invalid request. }
+        "401": { description: Missing or invalid token. }
+        "404": { description: Event or section missing. }
+        "409": { description: Capacity exhausted, active hold limit exceeded, or external id conflict. }
+  /holds/{holdId}/confirm:
+    post:
+      security:
+        - Token: []
+      parameters:
+        - $ref: "#/components/parameters/HoldId"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                now: { type: string, format: date-time }
+              required: [now]
+      responses:
+        "200": { description: Hold confirmed into a reservation. }
+        "401": { description: Missing or invalid token. }
+        "403": { description: Hold belongs to another user. }
+        "404": { description: Hold missing. }
+        "409": { description: Hold is not active or is expired. }
+  /holds/{holdId}/cancel:
+    post:
+      security:
+        - Token: []
+      parameters:
+        - $ref: "#/components/parameters/HoldId"
+      responses:
+        "200": { description: Active hold canceled. }
+        "401": { description: Missing or invalid token. }
+        "403": { description: Hold belongs to another user. }
+        "404": { description: Hold missing. }
+        "409": { description: Hold is not active. }
+  /events/{eventId}/expire-holds:
+    post:
+      parameters:
+        - $ref: "#/components/parameters/EventId"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                now: { type: string, format: date-time }
+              required: [now]
+      responses:
+        "200": { description: Expired active holds were marked expired. }
+        "400": { description: Invalid request. }
+        "404": { description: Event missing. }
+  /events/{eventId}/summary:
+    get:
+      parameters:
+        - $ref: "#/components/parameters/EventId"
+        - name: now
+          in: query
+          required: true
+          schema:
+            type: string
+            format: date-time
+      responses:
+        "200": { description: Event capacity summary. }
+        "400": { description: Invalid request. }
+        "404": { description: Event missing. }
+components:
+  securitySchemes:
+    Token:
+      type: apiKey
+      in: header
+      name: Authorization
+  parameters:
+    EventId:
+      name: eventId
+      in: path
+      required: true
+      schema: { type: string }
+    HoldId:
+      name: holdId
+      in: path
+      required: true
+      schema: { type: string }
+  schemas:
+    EventCreate:
+      type: object
+      properties:
+        code: { type: string, minLength: 1 }
+        holdSeconds: { type: integer, minimum: 1 }
+        perUserActiveHoldLimit: { type: integer, minimum: 1 }
+        sections:
+          type: array
+          minItems: 1
+          items:
+            type: object
+            properties:
+              name: { type: string, minLength: 1 }
+              capacity: { type: integer, minimum: 1 }
+            required: [name, capacity]
+      required: [code, holdSeconds, perUserActiveHoldLimit, sections]
+    HoldCreate:
+      type: object
+      properties:
+        eventCode: { type: string, minLength: 1 }
+        externalId: { type: string, minLength: 1 }
+        now: { type: string, format: date-time }
+        seats:
+          type: array
+          minItems: 1
+          items:
+            type: object
+            properties:
+              section: { type: string, minLength: 1 }
+              quantity: { type: integer, minimum: 1 }
+            required: [section, quantity]
+      required: [eventCode, externalId, now, seats]

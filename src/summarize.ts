@@ -25,6 +25,7 @@ const rows = (
 
       return {
         file: relative,
+        language: result.language ?? "javascript",
         taskId: result.taskId ?? "commerce-ledger",
         level: result.level,
         condition: relative.includes("-shape-") ? "shape" : "baseline",
@@ -45,8 +46,9 @@ console.table(rows);
 
 const grouped = new Map<string, any>();
 for (const row of rows) {
-  const key = `${row.taskId}:${row.condition}:${row.level}`;
+  const key = `${row.language}:${row.taskId}:${row.condition}:${row.level}`;
   const current = grouped.get(key) ?? {
+    language: row.language,
     taskId: row.taskId,
     condition: row.condition,
     level: row.level,
@@ -68,6 +70,7 @@ for (const row of rows) {
 
 const summary = [...grouped.values()].map((row) => ({
   taskId: row.taskId,
+  language: row.language,
   condition: row.condition,
   level: row.level,
   runs: row.runs,

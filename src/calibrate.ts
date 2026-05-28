@@ -1,5 +1,6 @@
 import { runsDir, taskIds } from "./config.ts";
 import { basename, listFiles, modifiedTime, readJson, relativePath } from "./bun-utils.ts";
+import { defaultLanguage, languageIds } from "./languages.ts";
 
 async function walkEvaluations(root: string): Promise<string[]> {
   return (await listFiles(root)).filter((file) => basename(file) === "evaluation.json");
@@ -14,8 +15,9 @@ async function latestByTaskConditionLevel(files: string[]) {
 
   for (const file of files) {
     const result = await readJson<any>(file);
+    const language = result.language ?? defaultLanguage;
     const taskId = result.taskId ?? "commerce-ledger";
-    const key = `${taskId}:${conditionForFile(file)}:${result.level}`;
+    const key = `${language}:${taskId}:${conditionForFile(file)}:${result.level}`;
     const previous = latest.get(key);
     const mtimeMs = await modifiedTime(file);
     if (!previous || previous.mtimeMs < mtimeMs) {
@@ -28,10 +30,10 @@ async function latestByTaskConditionLevel(files: string[]) {
 
 const latest = await latestByTaskConditionLevel(await walkEvaluations(runsDir));
 
-const rows = taskIds.map((taskId) => {
-  const l0 = latest.get(`${taskId}:baseline:L0`)?.result ?? null;
-  const l3 = latest.get(`${taskId}:baseline:L3`)?.result ?? null;
-  const shapeL3 = latest.get(`${taskId}:shape:L3`)?.result ?? null;
+const rows = languageIds.flatMap((language) => taskIds.map((taskId) => {
+  const l0 = latest.get(`${language}:${taskId}:baseline:L0`)?.result ?? null;
+  const l3 = latest.get(`${language}:${taskId}:baseline:L3`)?.result ?? null;
+  const shapeL3 = latest.get(`${language}:${taskId}:shape:L3`)?.result ?? null;
   const l0Rate = l0?.behavior.assertionPassRate ?? null;
   const l3Rate = l3?.behavior.assertionPassRate ?? null;
   const shapeRate = shapeL3?.behavior.assertionPassRate ?? null;
@@ -64,6 +66,7 @@ const rows = taskIds.map((taskId) => {
   }
 
   return {
+    language,
     taskId,
     baselineL0: l0Rate,
     baselineL0Passed: l0?.passed ?? null,
@@ -78,7 +81,7 @@ const rows = taskIds.map((taskId) => {
     l0FirstFailure: l0?.behavior.failures[0]?.name ?? "",
     l3FirstFailure: l3?.behavior.failures[0]?.name ?? "",
   };
-});
+}));
 
 console.table(rows);
 
@@ -87,9 +90,10 @@ console.log(
   JSON.stringify(
     {
       acceptedTasks: accepted.map((row) => row.taskId),
+      acceptedByLanguage: accepted.map((row) => `${row.language}:${row.taskId}`),
       acceptedCount: accepted.length,
-      targetCount: taskIds.length,
-      readyForShapeComparison: accepted.length === taskIds.length,
+      targetCount: taskIds.length * languageIds.length,
+      readyForShapeComparison: accepted.length === taskIds.length * languageIds.length,
     },
     null,
     2,

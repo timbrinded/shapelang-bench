@@ -71,7 +71,12 @@ export function parseArgs(argv: string[] = Bun.argv.slice(2)): CliArgs {
 }
 
 export async function exists(path: string): Promise<boolean> {
-  return Bun.file(path).exists();
+  try {
+    await Bun.file(path).stat();
+    return true;
+  } catch {
+    return false;
+  }
 }
 
 export async function readText(path: string): Promise<string> {

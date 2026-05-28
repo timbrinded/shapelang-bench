@@ -1,11 +1,28 @@
+# Benchmark run artifacts: generated candidate projects, isolated homes,
+# evaluator copies, logs, and temporary databases live here.
 runs/*
 !runs/.gitkeep
+
+# Candidate/evaluator build products if a generated project is run outside runs/.
+target/
+.venv/
+__pycache__/
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.bench-bin/
+dist/
+build/
+coverage/
+
 node_modules/
 bun.lock
 package-lock.json
 pnpm-lock.yaml
 yarn.lock
 npm-shrinkwrap.json
+go.sum
+Cargo.lock
 *.sqlite
 *.sqlite-*
 *.db

@@ -6,7 +6,8 @@ quality.
 ## Question
 
 Does an explicit Shape contract reduce L3 constraint decay in agent-generated
-backend systems?
+backend systems, and does that effect hold across JavaScript, Python, Go, and
+Rust backend stacks?
 
 Shape is treated as a deterministic architecture conformance language. It is not
 treated as a proof of application correctness.
@@ -22,7 +23,14 @@ Levels:
 - `L0`: fixed API, no meaningful structure constraints.
 - `L1`: layered architecture.
 - `L2`: layered architecture plus SQLite persistence.
-- `L3`: layered architecture plus SQLite plus Sequelize ORM.
+- `L3`: layered architecture plus SQLite plus the language-specific ORM.
+
+Language profiles:
+
+- `javascript`: Express, SQLite, Sequelize.
+- `python`: FastAPI, `sqlite3`, SQLAlchemy.
+- `go`: `net/http` ServeMux, `database/sql`, GORM.
+- `rust`: axum, SQLx SQLite, SeaORM.
 
 ## Acceptance Rule
 
@@ -44,6 +52,8 @@ A task is useful primary evidence only when:
 | `grant-budgets` | Primary signal | Structure decay recovered by Shape. |
 | `commerce-ledger` | Negative control | Decay exists, Shape currently does not help. |
 | `rebate-claims` | Hygiene check | Original Shape failure was a lockfile/package artifact; cleaned source passes. |
+| `seat-reservations` | Candidate | New multi-section capacity, hold-expiration, ownership, idempotency, and summary task. |
+| `work-queue-leases` | Candidate | New priority lease, retry, release, reaping, dead-letter, and summary task. |
 | `refund-ledger` | Control | Baseline L3 already passes. |
 | `promo-orders` | Control | Baseline L3 already passes. |
 | `voucher-issues` | Control | Baseline L3 already passes. |

@@ -7,8 +7,10 @@ The harness keeps each task's HTTP API fixed, varies the structural constraints
 in the prompt, and evaluates generated candidates with both black-box HTTP tests
 and static conformance checks.
 
-The harness itself runs on Bun and TypeScript. The current benchmark tasks still
-generate Express/JavaScript candidates; TypeScript task variants are future work.
+The harness itself runs on Bun and TypeScript. Candidate generation now has four
+language profiles: JavaScript/Express, Python/FastAPI, Go/net/http, and
+Rust/axum. Each profile uses the same task OpenAPI and behavior tests, but
+different language-specific HTTP, SQLite, and ORM constraints.
 
 ## Current Signal Tasks
 
@@ -23,10 +25,19 @@ generate Express/JavaScript candidates; TypeScript task variants are future work
 Additional task drafts are kept under `tasks/` and `prompts/`, but should be
 treated as controls or quarantine cases until their L0 baselines are stable.
 
+## Candidate Task Additions
+
+| Task | Status | Stressors |
+| --- | --- | --- |
+| `seat-reservations` | Candidate | Multi-section capacity, expiring holds, owner-only confirmation/cancelation, active-hold limits, idempotency, summaries. |
+| `work-queue-leases` | Candidate | Priority/FIFO claim order, exclusive leases, retries, release, expired-lease reaping, dead letters, summaries. |
+
 ## Requirements
 
 - Bun on `PATH`, or set `BUN_BIN=/path/to/bun`.
 - Run `bun install` once to install the TypeScript checker used by the harness.
+- For non-JavaScript candidates, install the relevant runtime on `PATH`, or set
+  `PYTHON_BIN`, `GO_BIN`, or `CARGO_BIN`.
 - Codex CLI on `PATH` for agent runs.
 - Shape CLI is optional for now; the current verifier checks generated Shape
   artifacts structurally rather than invoking `shp`.
@@ -46,6 +57,7 @@ It does not copy your Codex auth into run directories unless you explicitly pass
 ```bash
 bun src/run-codex.ts --task coupon-redemptions --condition baseline --levels L0,L3 --trials 1 --model gpt-5.4-mini --copy-auth true
 bun src/run-codex.ts --task coupon-redemptions --condition shape --levels L3 --trials 1 --model gpt-5.4-mini --copy-auth true
+bun src/run-codex.ts --language rust --task work-queue-leases --condition baseline --levels L0,L3 --trials 1 --model gpt-5.4-mini --copy-auth true
 ```
 
 ## Summarize And Calibrate

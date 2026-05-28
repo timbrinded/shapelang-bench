@@ -7,6 +7,7 @@ import {
   runsDir,
   taskIds,
 } from "./config.ts";
+import { defaultLanguage, languageIds } from "./languages.ts";
 import {
   exists,
   joinPath,
@@ -39,8 +40,12 @@ const selectedLevels = (args.levels ? args.levels.split(",") : allLevels).map((l
 const trials = Number(args.trials ?? 1);
 const model = args.model ?? "gpt-5.4-mini";
 const timeoutMs = Number(args.timeoutMs ?? 600_000);
+const evaluationTimeoutMs = Number(args.evaluationTimeoutMs ?? 180_000);
 const condition = args.condition ?? "baseline";
 const taskId = args.task ?? "commerce-ledger";
+const language = args.language ?? defaultLanguage;
+const port = Number(args.port ?? defaultPort);
+const healthTimeoutMs = args.healthTimeoutMs ? Number(args.healthTimeoutMs) : null;
 const shouldCopyAuth = args["copy-auth"] === "true";
 
 for (const level of selectedLevels) {
@@ -54,18 +59,21 @@ if (!conditions.includes(condition)) {
 if (!taskIds.includes(taskId)) {
   throw new Error(`unknown task: ${taskId}`);
 }
+if (!languageIds.includes(language)) {
+  throw new Error(`unknown language: ${language}`);
+}
 
 await writeText(joinPath(runsDir, ".gitkeep"), "");
 
 for (const level of selectedLevels) {
   const prompt = await readText(
-    joinPath(promptsDir, taskId, condition, `${level.toLowerCase()}.md`),
+    joinPath(promptsDir, language, taskId, condition, `${level.toLowerCase()}.md`),
   );
 
   for (let trial = 1; trial <= trials; trial += 1) {
     const runDir = joinPath(
       runsDir,
-      `${timestamp()}-${taskId}-${condition}-${level.toLowerCase()}-trial-${trial}`,
+      `${timestamp()}-${language}-${taskId}-${condition}-${level.toLowerCase()}-trial-${trial}`,
     );
     const workDir = joinPath(runDir, "work");
     const runHome = joinPath(runDir, "home");
@@ -85,7 +93,7 @@ for (const level of selectedLevels) {
       HOME: runHome,
       CODEX_HOME: codexHome,
       PATH: Bun.env.PATH ?? "",
-      PORT: String(defaultPort),
+      PORT: String(port),
     };
 
     const codexArgs = [
@@ -104,7 +112,9 @@ for (const level of selectedLevels) {
       workDir,
     ];
 
-    console.log(`running Codex ${taskId} ${condition} ${level} trial ${trial} with ${model}`);
+    console.log(
+      `running Codex ${language} ${taskId} ${condition} ${level} trial ${trial} with ${model}`,
+    );
     const codex = await runProcess("codex", codexArgs, {
       cwd: workDir,
       env,
@@ -121,12 +131,17 @@ for (const level of selectedLevels) {
       bunBin,
       [
         joinPath(import.meta.dir, "evaluate.ts"),
+        "--language",
+        language,
         "--task",
         taskId,
         "--candidate",
         workDir,
         "--level",
         level,
+        "--port",
+        String(port),
+        ...(healthTimeoutMs === null ? [] : ["--healthTimeoutMs", String(healthTimeoutMs)]),
         "--out",
         evalOut,
       ],
@@ -136,7 +151,7 @@ for (const level of selectedLevels) {
           ...Bun.env,
           PATH: Bun.env.PATH ?? "",
         },
-        timeoutMs: 180_000,
+        timeoutMs: evaluationTimeoutMs,
       },
     );
 

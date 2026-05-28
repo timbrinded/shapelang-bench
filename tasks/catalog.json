@@ -1,11 +1,17 @@
 {
   "suite": "constraint-decay-minimal-backends",
   "objective": "Expose backend constraint decay with small fixed-API generation tasks, then compare baseline prompts against Shape-assisted prompts.",
+  "languages": {
+    "javascript": "Express, SQLite, Sequelize",
+    "python": "FastAPI, sqlite3, SQLAlchemy",
+    "go": "net/http ServeMux, database/sql with SQLite, GORM",
+    "rust": "axum, SQLx SQLite, SeaORM"
+  },
   "levels": {
-    "L0": "Express only, unconstrained internals, in-memory storage allowed.",
+    "L0": "Language-specific HTTP server, unconstrained internals, in-memory storage allowed.",
     "L1": "L0 plus layered architecture.",
     "L2": "L1 plus SQLite persistence.",
-    "L3": "L2 plus Sequelize ORM."
+    "L3": "L2 plus a language-specific ORM."
   },
   "conditions": {
     "baseline": "Functional API plus structural constraints only.",
@@ -49,6 +55,17 @@
       }
     },
     {
+      "id": "seat-reservations",
+      "status": "candidate",
+      "domain": "Event seat holds, confirmation, expiration, and section capacity accounting",
+      "decay_mode": "untested",
+      "shape_effect": "untested",
+      "current_evidence": {
+        "behavior_assertions": "63 expected by harness",
+        "stressors": "multi-section atomic capacity, active hold limits, ownership, expiration, idempotency, summaries"
+      }
+    },
+    {
       "id": "rebate-claims",
       "status": "accepted",
       "domain": "Rebate claim and reversal accounting",
@@ -70,6 +87,17 @@
         "baseline_L0": "31/31, structure pass",
         "baseline_L3": "24/31, structure pass",
         "shape_L3": "31/31, structure pass"
+      }
+    },
+    {
+      "id": "work-queue-leases",
+      "status": "candidate",
+      "domain": "Priority work queue leasing, retry, release, and dead-letter accounting",
+      "decay_mode": "untested",
+      "shape_effect": "untested",
+      "current_evidence": {
+        "behavior_assertions": "74 expected by harness",
+        "stressors": "priority ordering, idempotency, worker ownership, lease expiry, retry limits, terminal states, summaries"
       }
     }
   ],
