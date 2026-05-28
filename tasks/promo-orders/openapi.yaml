@@ -1,0 +1,102 @@
+openapi: 3.0.3
+info:
+  title: Minimal Promo Order API
+  version: 1.0.0
+servers:
+  - url: http://localhost:{port}/api
+    variables:
+      port:
+        default: "3137"
+paths:
+  /health-check:
+    get:
+      responses:
+        "200": { description: Server is healthy. }
+  /users:
+    post:
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                username: { type: string, minLength: 1 }
+              required: [username]
+      responses:
+        "201": { description: User created. }
+        "400": { description: Invalid request. }
+        "409": { description: Duplicate username. }
+  /promotions:
+    post:
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                code: { type: string, minLength: 1 }
+                discountCents: { type: integer, minimum: 1 }
+                budgetCents: { type: integer, minimum: 1 }
+                perUserLimit: { type: integer, minimum: 1 }
+              required: [code, discountCents, budgetCents, perUserLimit]
+      responses:
+        "201": { description: Promotion created. }
+        "400": { description: Invalid request. }
+        "409": { description: Duplicate code. }
+  /orders:
+    post:
+      security:
+        - Token: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                externalId: { type: string, minLength: 1 }
+                subtotalCents: { type: integer, minimum: 1 }
+                promoCode: { type: string, minLength: 1 }
+              required: [externalId, subtotalCents, promoCode]
+      responses:
+        "201": { description: Order created. }
+        "200": { description: Existing idempotent order returned. }
+        "400": { description: Invalid request. }
+        "401": { description: Missing or invalid token. }
+        "404": { description: Promotion missing. }
+        "409": { description: Budget exceeded or per-user limit exceeded. }
+  /orders/{orderId}/cancel:
+    post:
+      security:
+        - Token: []
+      parameters:
+        - name: orderId
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "200": { description: Order canceled. }
+        "401": { description: Missing or invalid token. }
+        "403": { description: Order belongs to another user. }
+        "404": { description: Order missing. }
+        "409": { description: Order already canceled. }
+  /promotions/{promotionId}/summary:
+    get:
+      parameters:
+        - name: promotionId
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "200": { description: Promotion summary. }
+        "404": { description: Promotion missing. }
+components:
+  securitySchemes:
+    Token:
+      type: apiKey
+      in: header
+      name: Authorization

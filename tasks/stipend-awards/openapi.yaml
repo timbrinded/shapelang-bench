@@ -1,0 +1,101 @@
+openapi: 3.0.3
+info:
+  title: Minimal Stipend Award API
+  version: 1.0.0
+servers:
+  - url: http://localhost:{port}/api
+    variables:
+      port:
+        default: "3137"
+paths:
+  /health-check:
+    get:
+      responses:
+        "200": { description: Server is healthy. }
+  /users:
+    post:
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                username: { type: string, minLength: 1 }
+              required: [username]
+      responses:
+        "201": { description: User created. }
+        "400": { description: Invalid request. }
+        "409": { description: Duplicate username. }
+  /stipends:
+    post:
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                code: { type: string, minLength: 1 }
+                awardCents: { type: integer, minimum: 1 }
+                budgetCents: { type: integer, minimum: 1 }
+                perUserLimit: { type: integer, minimum: 1 }
+              required: [code, awardCents, budgetCents, perUserLimit]
+      responses:
+        "201": { description: Stipend created. }
+        "400": { description: Invalid request. }
+        "409": { description: Duplicate code. }
+  /awards:
+    post:
+      security:
+        - Token: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                externalId: { type: string, minLength: 1 }
+                stipendCode: { type: string, minLength: 1 }
+              required: [externalId, stipendCode]
+      responses:
+        "201": { description: Award created. }
+        "200": { description: Existing idempotent award returned. }
+        "400": { description: Invalid request. }
+        "401": { description: Missing or invalid token. }
+        "404": { description: Stipend missing. }
+        "409": { description: Budget exceeded or per-user limit exceeded. }
+  /awards/{awardId}/rescind:
+    post:
+      security:
+        - Token: []
+      parameters:
+        - name: awardId
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "200": { description: Award rescinded. }
+        "401": { description: Missing or invalid token. }
+        "403": { description: Award belongs to another user. }
+        "404": { description: Award missing. }
+        "409": { description: Award already rescinded. }
+  /stipends/{stipendId}/summary:
+    get:
+      parameters:
+        - name: stipendId
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "200": { description: Stipend summary. }
+        "404": { description: Stipend missing. }
+components:
+  securitySchemes:
+    Token:
+      type: apiKey
+      in: header
+      name: Authorization

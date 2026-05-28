@@ -1,0 +1,100 @@
+openapi: 3.0.3
+info:
+  title: Minimal Gift Card Redemption API
+  version: 1.0.0
+servers:
+  - url: http://localhost:{port}/api
+    variables:
+      port:
+        default: "3137"
+paths:
+  /health-check:
+    get:
+      responses:
+        "200": { description: Server is healthy. }
+  /users:
+    post:
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                username: { type: string, minLength: 1 }
+              required: [username]
+      responses:
+        "201": { description: User created. }
+        "400": { description: Invalid request. }
+        "409": { description: Duplicate username. }
+  /cards:
+    post:
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                code: { type: string, minLength: 1 }
+                initialBalanceCents: { type: integer, minimum: 1 }
+              required: [code, initialBalanceCents]
+      responses:
+        "201": { description: Gift card created. }
+        "400": { description: Invalid request. }
+        "409": { description: Duplicate card code. }
+  /charges:
+    post:
+      security:
+        - Token: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                externalId: { type: string, minLength: 1 }
+                cardCode: { type: string, minLength: 1 }
+                amountCents: { type: integer, minimum: 1 }
+              required: [externalId, cardCode, amountCents]
+      responses:
+        "201": { description: Charge created. }
+        "200": { description: Existing idempotent charge returned. }
+        "400": { description: Invalid request. }
+        "401": { description: Missing or invalid token. }
+        "404": { description: Card missing. }
+        "409": { description: Insufficient card balance. }
+  /charges/{chargeId}/cancel:
+    post:
+      security:
+        - Token: []
+      parameters:
+        - name: chargeId
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "200": { description: Charge canceled. }
+        "401": { description: Missing or invalid token. }
+        "403": { description: Charge belongs to another user. }
+        "404": { description: Charge missing. }
+        "409": { description: Charge already canceled. }
+  /cards/{cardId}/summary:
+    get:
+      parameters:
+        - name: cardId
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "200": { description: Gift card summary. }
+        "404": { description: Card missing. }
+components:
+  securitySchemes:
+    Token:
+      type: apiKey
+      in: header
+      name: Authorization

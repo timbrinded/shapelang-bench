@@ -1,0 +1,11 @@
+{
+  "name": "shapelang-bench",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "generate": "bun src/generate-prompts.mjs",
+    "calibrate": "bun src/calibrate.mjs",
+    "summarize": "bun src/summarize.mjs"
+  }
+}

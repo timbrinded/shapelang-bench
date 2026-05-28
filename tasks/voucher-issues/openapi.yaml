@@ -1,0 +1,101 @@
+openapi: 3.0.3
+info:
+  title: Minimal Voucher Issue API
+  version: 1.0.0
+servers:
+  - url: http://localhost:{port}/api
+    variables:
+      port:
+        default: "3137"
+paths:
+  /health-check:
+    get:
+      responses:
+        "200": { description: Server is healthy. }
+  /users:
+    post:
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                username: { type: string, minLength: 1 }
+              required: [username]
+      responses:
+        "201": { description: User created. }
+        "400": { description: Invalid request. }
+        "409": { description: Duplicate username. }
+  /programs:
+    post:
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                code: { type: string, minLength: 1 }
+                valueCents: { type: integer, minimum: 1 }
+                budgetCents: { type: integer, minimum: 1 }
+                perUserLimit: { type: integer, minimum: 1 }
+              required: [code, valueCents, budgetCents, perUserLimit]
+      responses:
+        "201": { description: Program created. }
+        "400": { description: Invalid request. }
+        "409": { description: Duplicate code. }
+  /issues:
+    post:
+      security:
+        - Token: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                externalId: { type: string, minLength: 1 }
+                programCode: { type: string, minLength: 1 }
+              required: [externalId, programCode]
+      responses:
+        "201": { description: Voucher issue created. }
+        "200": { description: Existing idempotent issue returned. }
+        "400": { description: Invalid request. }
+        "401": { description: Missing or invalid token. }
+        "404": { description: Program missing. }
+        "409": { description: Budget exceeded or per-user limit exceeded. }
+  /issues/{issueId}/revoke:
+    post:
+      security:
+        - Token: []
+      parameters:
+        - name: issueId
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "200": { description: Voucher issue revoked. }
+        "401": { description: Missing or invalid token. }
+        "403": { description: Issue belongs to another user. }
+        "404": { description: Issue missing. }
+        "409": { description: Issue already revoked. }
+  /programs/{programId}/summary:
+    get:
+      parameters:
+        - name: programId
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "200": { description: Program summary. }
+        "404": { description: Program missing. }
+components:
+  securitySchemes:
+    Token:
+      type: apiKey
+      in: header
+      name: Authorization

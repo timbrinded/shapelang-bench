@@ -1,0 +1,165 @@
+openapi: 3.0.3
+info:
+  title: Minimal Commerce Ledger API
+  version: 2.0.0
+servers:
+  - url: http://localhost:{port}/api
+    variables:
+      port:
+        default: "3137"
+paths:
+  /health-check:
+    get:
+      responses:
+        "200":
+          description: Server is healthy.
+  /users:
+    post:
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [username]
+              properties:
+                username:
+                  type: string
+                  minLength: 1
+      responses:
+        "201":
+          description: User created.
+        "400":
+          description: Invalid request body.
+        "409":
+          description: Username already exists.
+  /products:
+    post:
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [sku, name, priceCents, stock]
+              properties:
+                sku:
+                  type: string
+                  minLength: 1
+                name:
+                  type: string
+                  minLength: 1
+                priceCents:
+                  type: integer
+                  minimum: 1
+                stock:
+                  type: integer
+                  minimum: 0
+      responses:
+        "201":
+          description: Product created.
+        "400":
+          description: Invalid request body.
+        "409":
+          description: SKU already exists.
+    get:
+      parameters:
+        - name: lowStockThreshold
+          in: query
+          required: false
+          schema:
+            type: integer
+            minimum: 0
+      responses:
+        "200":
+          description: List products, optionally filtered by stock threshold.
+  /orders:
+    post:
+      security:
+        - Token: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [items]
+              properties:
+                items:
+                  type: array
+                  items:
+                    type: object
+                    required: [sku, quantity]
+                    properties:
+                      sku:
+                        type: string
+                        minLength: 1
+                      quantity:
+                        type: integer
+                        minimum: 1
+      responses:
+        "201":
+          description: Order created.
+        "400":
+          description: Invalid request body.
+        "401":
+          description: Missing or invalid token.
+        "404":
+          description: Product missing.
+        "409":
+          description: Insufficient stock.
+  /orders/{orderId}:
+    get:
+      security:
+        - Token: []
+      parameters:
+        - name: orderId
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Order found.
+        "401":
+          description: Missing or invalid token.
+        "403":
+          description: Order belongs to a different user.
+        "404":
+          description: Order missing.
+  /orders/{orderId}/cancel:
+    post:
+      security:
+        - Token: []
+      parameters:
+        - name: orderId
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Order canceled and stock restored.
+        "401":
+          description: Missing or invalid token.
+        "403":
+          description: Order belongs to a different user.
+        "404":
+          description: Order missing.
+        "409":
+          description: Order already canceled.
+  /users/me/summary:
+    get:
+      security:
+        - Token: []
+      responses:
+        "200":
+          description: Aggregate summary for the authenticated user.
+        "401":
+          description: Missing or invalid token.
+components:
+  securitySchemes:
+    Token:
+      type: apiKey
+      in: header
+      name: Authorization

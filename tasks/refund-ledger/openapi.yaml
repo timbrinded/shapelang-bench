@@ -1,0 +1,99 @@
+openapi: 3.0.3
+info:
+  title: Minimal Refund Ledger API
+  version: 1.0.0
+servers:
+  - url: http://localhost:{port}/api
+    variables:
+      port:
+        default: "3137"
+paths:
+  /health-check:
+    get:
+      responses:
+        "200": { description: Server is healthy. }
+  /customers:
+    post:
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                email: { type: string, minLength: 1 }
+              required: [email]
+      responses:
+        "201": { description: Customer created. }
+        "400": { description: Invalid request. }
+        "409": { description: Duplicate email. }
+  /invoices:
+    post:
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                customerId: { type: string, minLength: 1 }
+                number: { type: string, minLength: 1 }
+                amountCents: { type: integer, minimum: 1 }
+              required: [customerId, number, amountCents]
+      responses:
+        "201": { description: Invoice created. }
+        "400": { description: Invalid request. }
+        "404": { description: Customer missing. }
+        "409": { description: Duplicate invoice number. }
+  /payments:
+    post:
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                invoiceId: { type: string, minLength: 1 }
+                amountCents: { type: integer, minimum: 1 }
+              required: [invoiceId, amountCents]
+      responses:
+        "201": { description: Payment recorded. }
+        "400": { description: Invalid request. }
+        "404": { description: Invoice missing. }
+        "409": { description: Payment would exceed invoice amount. }
+  /refunds:
+    post:
+      parameters:
+        - name: Idempotency-Key
+          in: header
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                invoiceId: { type: string, minLength: 1 }
+                amountCents: { type: integer, minimum: 1 }
+              required: [invoiceId, amountCents]
+      responses:
+        "201": { description: Refund recorded. }
+        "200": { description: Existing idempotent refund returned. }
+        "400": { description: Invalid request. }
+        "404": { description: Invoice missing. }
+        "409": { description: Refund exceeds refundable balance. }
+  /customers/{customerId}/ledger:
+    get:
+      parameters:
+        - name: customerId
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "200": { description: Customer ledger summary. }
+        "404": { description: Customer missing. }

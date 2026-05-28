@@ -1,0 +1,13 @@
+runs/*
+!runs/.gitkeep
+node_modules/
+bun.lock
+package-lock.json
+pnpm-lock.yaml
+yarn.lock
+npm-shrinkwrap.json
+*.sqlite
+*.sqlite-*
+*.db
+.env
+.DS_Store

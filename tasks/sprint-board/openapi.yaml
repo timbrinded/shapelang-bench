@@ -1,0 +1,315 @@
+openapi: 3.0.3
+info:
+  title: Minimal Sprint Board API
+  version: 1.1.0
+servers:
+  - url: http://localhost:{port}/api
+    variables:
+      port:
+        default: "3137"
+paths:
+  /health-check:
+    get:
+      responses:
+        "200":
+          description: Server is healthy.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Health"
+  /teams:
+    post:
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/TeamCreate"
+      responses:
+        "201":
+          description: Team created.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Team"
+        "400":
+          description: Invalid request.
+        "409":
+          description: Duplicate slug.
+  /users:
+    post:
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/UserCreate"
+      responses:
+        "201":
+          description: User created.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/User"
+        "400":
+          description: Invalid request.
+        "409":
+          description: Duplicate username.
+  /issues:
+    post:
+      security:
+        - Token: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/IssueCreate"
+      responses:
+        "201":
+          description: Issue created.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Issue"
+        "400":
+          description: Invalid request.
+        "401":
+          description: Missing or invalid token.
+        "403":
+          description: User does not belong to the requested team.
+        "404":
+          description: Team missing.
+  /issues/{issueId}:
+    patch:
+      security:
+        - Token: []
+      parameters:
+        - $ref: "#/components/parameters/IssueId"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/IssueUpdate"
+      responses:
+        "200":
+          description: Issue updated.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Issue"
+        "400":
+          description: Invalid transition.
+        "401":
+          description: Missing or invalid token.
+        "403":
+          description: Wrong team.
+        "404":
+          description: Issue missing.
+  /issues/{issueId}/comments:
+    post:
+      security:
+        - Token: []
+      parameters:
+        - $ref: "#/components/parameters/IssueId"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CommentCreate"
+      responses:
+        "201":
+          description: Comment created.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Comment"
+        "401":
+          description: Missing or invalid token.
+        "403":
+          description: Wrong team.
+        "404":
+          description: Issue missing.
+  /teams/{teamId}/issues:
+    get:
+      parameters:
+        - $ref: "#/components/parameters/TeamId"
+        - name: labels
+          in: query
+          required: false
+          description: Comma-separated labels. Matching uses AND semantics.
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Team-scoped issue list.
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/Issue"
+        "404":
+          description: Team missing.
+  /teams/{teamId}/summary:
+    get:
+      parameters:
+        - $ref: "#/components/parameters/TeamId"
+      responses:
+        "200":
+          description: Board summary.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/TeamSummary"
+        "404":
+          description: Team missing.
+components:
+  securitySchemes:
+    Token:
+      type: apiKey
+      in: header
+      name: Authorization
+      description: Use the literal format `Token <token>`.
+  parameters:
+    TeamId:
+      name: teamId
+      in: path
+      required: true
+      schema:
+        type: string
+    IssueId:
+      name: issueId
+      in: path
+      required: true
+      schema:
+        type: string
+  schemas:
+    Health:
+      type: object
+      properties:
+        ok:
+          type: boolean
+      required: [ok]
+    TeamCreate:
+      type: object
+      properties:
+        slug:
+          type: string
+          minLength: 1
+        name:
+          type: string
+          minLength: 1
+      required: [slug, name]
+    Team:
+      type: object
+      properties:
+        id:
+          type: string
+        slug:
+          type: string
+        name:
+          type: string
+      required: [id, slug, name]
+    UserCreate:
+      type: object
+      properties:
+        username:
+          type: string
+          minLength: 1
+        teamId:
+          type: string
+      required: [username, teamId]
+    User:
+      type: object
+      properties:
+        id:
+          type: string
+        username:
+          type: string
+        teamId:
+          type: string
+        token:
+          type: string
+      required: [id, username, teamId, token]
+    IssueCreate:
+      type: object
+      properties:
+        teamId:
+          type: string
+        title:
+          type: string
+          minLength: 1
+        labels:
+          type: array
+          items:
+            type: string
+            minLength: 1
+      required: [teamId, title, labels]
+    IssueUpdate:
+      type: object
+      properties:
+        status:
+          type: string
+          enum: [todo, doing, done]
+    CommentCreate:
+      type: object
+      properties:
+        body:
+          type: string
+          minLength: 1
+      required: [body]
+    Comment:
+      type: object
+      properties:
+        id:
+          type: string
+        issueId:
+          type: string
+        authorId:
+          type: string
+        body:
+          type: string
+        createdAt:
+          type: string
+          format: date-time
+      required: [id, issueId, authorId, body, createdAt]
+    Issue:
+      type: object
+      properties:
+        id:
+          type: string
+        teamId:
+          type: string
+        title:
+          type: string
+        status:
+          type: string
+          enum: [todo, doing, done]
+        labels:
+          type: array
+          items:
+            type: string
+        comments:
+          type: array
+          items:
+            $ref: "#/components/schemas/Comment"
+      required: [id, teamId, title, status, labels, comments]
+    TeamSummary:
+      type: object
+      properties:
+        teamId:
+          type: string
+        todoCount:
+          type: integer
+        doingCount:
+          type: integer
+        doneCount:
+          type: integer
+        issueIds:
+          type: array
+          items:
+            type: string
+      required: [teamId, todoCount, doingCount, doneCount, issueIds]
