@@ -4,8 +4,14 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "generate": "bun src/generate-prompts.mjs",
-    "calibrate": "bun src/calibrate.mjs",
-    "summarize": "bun src/summarize.mjs"
+    "generate": "bun src/generate-prompts.ts",
+    "calibrate": "bun src/calibrate.ts",
+    "summarize": "bun src/summarize.ts",
+    "typecheck": "tsc --noEmit",
+    "check": "bun run typecheck && bun run generate && bun run calibrate"
+  },
+  "devDependencies": {
+    "@types/bun": "latest",
+    "typescript": "^5.9.3"
   }
 }

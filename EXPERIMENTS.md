@@ -30,7 +30,7 @@ A task counts as useful decay evidence when:
 Run:
 
 ```bash
-bun src/calibrate.mjs
+bun src/calibrate.ts
 ```
 
 ## Local Results
@@ -59,7 +59,7 @@ too-easy tasks (`warehouse-lots`, `refund-ledger`, `voucher-issues`,
   `prompts/<task>/<condition>/<level>.md`.
 - Added task-aware Codex runner support through `--task`.
 - Added task-aware evaluation dispatch.
-- Added `calibrate.mjs` to classify which tasks actually qualify as decay
+- Added `calibrate.ts` to classify which tasks actually qualify as decay
   evidence.
 - Replaced skeletal OpenAPI specs for new tasks with response schemas, request
   schemas, path parameters, auth schemes, and scalar validation.

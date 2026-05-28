@@ -1,5 +1,3 @@
-import fs from "node:fs";
-import path from "node:path";
 import {
   conditions,
   constraintBlocks,
@@ -8,18 +6,18 @@ import {
   shapeGuidance,
   taskIds,
   tasksDir,
-} from "./config.mjs";
+} from "./config.ts";
+import { joinPath, readText, writeText } from "./bun-utils.ts";
 
-const template = fs.readFileSync(path.join(promptsDir, "template.md"), "utf8");
+const template = await readText(joinPath(promptsDir, "template.md"));
 let written = 0;
 
 for (const taskId of taskIds) {
-  const openApi = fs.readFileSync(path.join(tasksDir, taskId, "openapi.yaml"), "utf8");
-  const details = fs.readFileSync(path.join(tasksDir, taskId, "details.md"), "utf8");
+  const openApi = await readText(joinPath(tasksDir, taskId, "openapi.yaml"));
+  const details = await readText(joinPath(tasksDir, taskId, "details.md"));
 
   for (const condition of conditions) {
-    const conditionDir = path.join(promptsDir, taskId, condition);
-    fs.mkdirSync(conditionDir, { recursive: true });
+    const conditionDir = joinPath(promptsDir, taskId, condition);
 
     for (const level of levels) {
       const guidance = condition === "shape" ? `\n\n${shapeGuidance.trim()}` : "";
@@ -28,9 +26,9 @@ for (const taskId of taskIds) {
         .replace("{{CONSTRAINTS}}", `${constraintBlocks[level].trim()}${guidance}`)
         .replace("{{TASK_DETAILS}}", details.trim());
 
-      fs.writeFileSync(path.join(conditionDir, `${level.toLowerCase()}.md`), prompt);
+      await writeText(joinPath(conditionDir, `${level.toLowerCase()}.md`), prompt);
       if (taskId === "commerce-ledger" && condition === "baseline") {
-        fs.writeFileSync(path.join(promptsDir, `${level.toLowerCase()}.md`), prompt);
+        await writeText(joinPath(promptsDir, `${level.toLowerCase()}.md`), prompt);
       }
       written += 1;
     }

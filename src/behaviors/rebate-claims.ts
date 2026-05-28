@@ -1,4 +1,4 @@
-import { createBehaviorHarness, hasSameMembers, isIsoString, isObject } from "./helpers.mjs";
+import { createBehaviorHarness, hasSameMembers, isIsoString, isObject } from "./helpers.ts";
 
 const EXPECTED_ASSERTIONS = 31;
 
@@ -23,50 +23,50 @@ export async function runBehaviorTests(baseUrl) {
     const cara = await request("POST", "/api/users", { username: "cara" });
     check("create cara", cara.response.status === 201, cara.text);
 
-    const badGrant = await request("POST", "/api/grants", {
+    const badRebate = await request("POST", "/api/rebates", {
       code: "BAD",
-      awardCents: 0,
+      payoutCents: 0,
       budgetCents: 20,
       perUserLimit: 1,
     });
-    check("invalid grant returns 400", badGrant.response.status === 400);
+    check("invalid rebate returns 400", badRebate.response.status === 400);
 
-    const grant = await request("POST", "/api/grants", {
-      code: "TRAVEL",
-      awardCents: 10,
+    const rebate = await request("POST", "/api/rebates", {
+      code: "GREEN",
+      payoutCents: 10,
       budgetCents: 20,
       perUserLimit: 1,
     });
-    check("create grant", grant.response.status === 201, grant.text);
-    check("grant shape", isObject(grant.json) && grant.json.code === "TRAVEL");
+    check("create rebate", rebate.response.status === 201, rebate.text);
+    check("rebate shape", isObject(rebate.json) && rebate.json.code === "GREEN");
 
-    const duplicateGrant = await request("POST", "/api/grants", {
-      code: "TRAVEL",
-      awardCents: 10,
+    const duplicateRebate = await request("POST", "/api/rebates", {
+      code: "GREEN",
+      payoutCents: 10,
       budgetCents: 20,
       perUserLimit: 1,
     });
-    check("duplicate grant returns 409", duplicateGrant.response.status === 409);
+    check("duplicate rebate returns 409", duplicateRebate.response.status === 409);
 
     const noAuth = await request("POST", "/api/claims", {
       externalId: "no-auth",
-      grantCode: "TRAVEL",
+      rebateCode: "GREEN",
     });
     check("missing auth claim returns 401", noAuth.response.status === 401);
 
     const adaClaim = await request(
       "POST",
       "/api/claims",
-      { externalId: "ada-1", grantCode: "TRAVEL" },
+      { externalId: "ada-1", rebateCode: "GREEN" },
       ada.json.token,
     );
     check("ada claim status", adaClaim.response.status === 201, adaClaim.text);
-    check("ada claim award", adaClaim.json?.awardCents === 10);
+    check("ada claim payout", adaClaim.json?.payoutCents === 10);
 
     const repeatAda = await request(
       "POST",
       "/api/claims",
-      { externalId: "ada-1", grantCode: "TRAVEL" },
+      { externalId: "ada-1", rebateCode: "GREEN" },
       ada.json.token,
     );
     check("repeat external id returns 200", repeatAda.response.status === 200);
@@ -75,7 +75,7 @@ export async function runBehaviorTests(baseUrl) {
     const adaLimit = await request(
       "POST",
       "/api/claims",
-      { externalId: "ada-2", grantCode: "TRAVEL" },
+      { externalId: "ada-2", rebateCode: "GREEN" },
       ada.json.token,
     );
     check("per user limit returns 409", adaLimit.response.status === 409);
@@ -83,7 +83,7 @@ export async function runBehaviorTests(baseUrl) {
     const bobClaim = await request(
       "POST",
       "/api/claims",
-      { externalId: "bob-1", grantCode: "TRAVEL" },
+      { externalId: "bob-1", rebateCode: "GREEN" },
       bob.json.token,
     );
     check("bob claim status", bobClaim.response.status === 201, bobClaim.text);
@@ -91,58 +91,58 @@ export async function runBehaviorTests(baseUrl) {
     const budgetExceeded = await request(
       "POST",
       "/api/claims",
-      { externalId: "cara-1", grantCode: "TRAVEL" },
+      { externalId: "cara-1", rebateCode: "GREEN" },
       cara.json.token,
     );
     check("budget exceeded returns 409", budgetExceeded.response.status === 409);
 
-    const summaryFull = await request("GET", `/api/grants/${grant.json?.id}/summary`);
+    const summaryFull = await request("GET", `/api/rebates/${rebate.json?.id}/summary`);
     check("summary full status", summaryFull.response.status === 200, summaryFull.text);
     check("summary active count full", summaryFull.json?.activeClaimCount === 2);
-    check("summary awarded full", summaryFull.json?.awardedCents === 20);
+    check("summary paid full", summaryFull.json?.paidOutCents === 20);
     check("summary remaining full", summaryFull.json?.remainingBudgetCents === 0);
 
-    const bobVoidAda = await request(
+    const bobReverseAda = await request(
       "POST",
-      `/api/claims/${adaClaim.json?.id}/void`,
+      `/api/claims/${adaClaim.json?.id}/reverse`,
       undefined,
       bob.json.token,
     );
-    check("other user void returns 403", bobVoidAda.response.status === 403);
+    check("other user reverse returns 403", bobReverseAda.response.status === 403);
 
-    const voided = await request(
+    const reversed = await request(
       "POST",
-      `/api/claims/${adaClaim.json?.id}/void`,
+      `/api/claims/${adaClaim.json?.id}/reverse`,
       undefined,
       ada.json.token,
     );
-    check("void claim status", voided.response.status === 200, voided.text);
-    check("void changes status", voided.json?.status === "voided");
+    check("reverse claim status", reversed.response.status === 200, reversed.text);
+    check("reverse changes status", reversed.json?.status === "reversed");
 
-    const summaryAfterVoid = await request("GET", `/api/grants/${grant.json?.id}/summary`);
-    check("summary active after void", summaryAfterVoid.json?.activeClaimCount === 1);
-    check("summary voided after void", summaryAfterVoid.json?.voidedClaimCount === 1);
-    check("summary releases budget", summaryAfterVoid.json?.remainingBudgetCents === 10);
+    const summaryAfterReverse = await request("GET", `/api/rebates/${rebate.json?.id}/summary`);
+    check("summary active after reverse", summaryAfterReverse.json?.activeClaimCount === 1);
+    check("summary reversed after reverse", summaryAfterReverse.json?.reversedClaimCount === 1);
+    check("summary releases budget", summaryAfterReverse.json?.remainingBudgetCents === 10);
     check(
-      "summary active ids after void",
-      hasSameMembers(summaryAfterVoid.json?.activeClaimIds, [bobClaim.json?.id]),
+      "summary active ids after reverse",
+      hasSameMembers(summaryAfterReverse.json?.activeClaimIds, [bobClaim.json?.id]),
     );
 
     const adaSecond = await request(
       "POST",
       "/api/claims",
-      { externalId: "ada-2", grantCode: "TRAVEL" },
+      { externalId: "ada-2", rebateCode: "GREEN" },
       ada.json.token,
     );
-    check("voided claim releases user limit", adaSecond.response.status === 201, adaSecond.text);
+    check("reversed claim releases user limit", adaSecond.response.status === 201, adaSecond.text);
 
-    const voidAgain = await request(
+    const reverseAgain = await request(
       "POST",
-      `/api/claims/${adaClaim.json?.id}/void`,
+      `/api/claims/${adaClaim.json?.id}/reverse`,
       undefined,
       ada.json.token,
     );
-    check("void twice returns 409", voidAgain.response.status === 409);
+    check("reverse twice returns 409", reverseAgain.response.status === 409);
   } catch (error) {
     exception(error);
   }

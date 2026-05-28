@@ -1,4 +1,4 @@
-import { createBehaviorHarness, hasSameMembers, isObject } from "./helpers.mjs";
+import { createBehaviorHarness, hasSameMembers, isObject } from "./helpers.ts";
 
 const EXPECTED_ASSERTIONS = 43;
 

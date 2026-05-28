@@ -7,6 +7,9 @@ The harness keeps each task's HTTP API fixed, varies the structural constraints
 in the prompt, and evaluates generated candidates with both black-box HTTP tests
 and static conformance checks.
 
+The harness itself runs on Bun and TypeScript. The current benchmark tasks still
+generate Express/JavaScript candidates; TypeScript task variants are future work.
+
 ## Current Signal Tasks
 
 | Task | Role | Current one-trial observation |
@@ -23,6 +26,7 @@ treated as controls or quarantine cases until their L0 baselines are stable.
 ## Requirements
 
 - Bun on `PATH`, or set `BUN_BIN=/path/to/bun`.
+- Run `bun install` once to install the TypeScript checker used by the harness.
 - Codex CLI on `PATH` for agent runs.
 - Shape CLI is optional for now; the current verifier checks generated Shape
   artifacts structurally rather than invoking `shp`.
@@ -30,7 +34,7 @@ treated as controls or quarantine cases until their L0 baselines are stable.
 ## Generate Prompts
 
 ```bash
-bun src/generate-prompts.mjs
+bun src/generate-prompts.ts
 ```
 
 ## Run Trials
@@ -40,15 +44,15 @@ It does not copy your Codex auth into run directories unless you explicitly pass
 `--copy-auth true`.
 
 ```bash
-bun src/run-codex.mjs --task coupon-redemptions --condition baseline --levels L0,L3 --trials 1 --model gpt-5.4-mini --copy-auth true
-bun src/run-codex.mjs --task coupon-redemptions --condition shape --levels L3 --trials 1 --model gpt-5.4-mini --copy-auth true
+bun src/run-codex.ts --task coupon-redemptions --condition baseline --levels L0,L3 --trials 1 --model gpt-5.4-mini --copy-auth true
+bun src/run-codex.ts --task coupon-redemptions --condition shape --levels L3 --trials 1 --model gpt-5.4-mini --copy-auth true
 ```
 
 ## Summarize And Calibrate
 
 ```bash
-bun src/summarize.mjs
-bun src/calibrate.mjs
+bun src/summarize.ts
+bun src/calibrate.ts
 ```
 
 Calibration accepts a task only when L0 is clean or near-clean, L3 decays, and

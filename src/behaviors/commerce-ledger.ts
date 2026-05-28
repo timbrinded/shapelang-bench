@@ -1,27 +1,27 @@
-function isObject(value) {
+function isObject(value: unknown): value is Record<string, any> {
   return value !== null && typeof value === "object" && !Array.isArray(value);
 }
 
-function isIsoString(value) {
+function isIsoString(value: unknown): boolean {
   return typeof value === "string" && !Number.isNaN(Date.parse(value));
 }
 
-function bySku(products, sku) {
+function bySku(products: any, sku: string) {
   return Array.isArray(products) ? products.find((product) => product.sku === sku) : null;
 }
 
-function byLineSku(order, sku) {
+function byLineSku(order: any, sku: string) {
   return Array.isArray(order?.items) ? order.items.find((line) => line.sku === sku) : null;
 }
 
 const EXPECTED_ASSERTIONS = 64;
 
-export async function runBehaviorTests(baseUrl) {
-  const failures = [];
+export async function runBehaviorTests(baseUrl: string) {
+  const failures: Array<{ name: string; detail: string }> = [];
   let passed = 0;
   let total = 0;
 
-  function check(name, condition, detail = "") {
+  function check(name: string, condition: boolean, detail = "") {
     total += 1;
     if (condition) {
       passed += 1;
@@ -30,9 +30,9 @@ export async function runBehaviorTests(baseUrl) {
     failures.push({ name, detail });
   }
 
-  async function request(method, path, body, token) {
-    const headers = {};
-    const init = { method, headers };
+  async function request(method: string, path: string, body?: unknown, token?: string) {
+    const headers: Record<string, string> = {};
+    const init: RequestInit = { method, headers };
     if (token) headers.authorization = `Token ${token}`;
     if (body !== undefined) {
       headers["content-type"] = "application/json";

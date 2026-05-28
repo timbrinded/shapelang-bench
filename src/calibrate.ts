@@ -1,39 +1,23 @@
-import fs from "node:fs";
-import path from "node:path";
-import { runsDir, taskIds } from "./config.mjs";
+import { runsDir, taskIds } from "./config.ts";
+import { basename, listFiles, modifiedTime, readJson, relativePath } from "./bun-utils.ts";
 
-function walkEvaluations(root) {
-  const files = [];
-  if (!fs.existsSync(root)) return files;
-
-  function walk(current) {
-    const stat = fs.statSync(current);
-    if (stat.isDirectory()) {
-      for (const entry of fs.readdirSync(current)) {
-        walk(path.join(current, entry));
-      }
-      return;
-    }
-    if (path.basename(current) === "evaluation.json") files.push(current);
-  }
-
-  walk(root);
-  return files;
+async function walkEvaluations(root: string): Promise<string[]> {
+  return (await listFiles(root)).filter((file) => basename(file) === "evaluation.json");
 }
 
-function conditionForFile(file) {
-  return path.relative(runsDir, file).includes("-shape-") ? "shape" : "baseline";
+function conditionForFile(file: string): "shape" | "baseline" {
+  return relativePath(runsDir, file).includes("-shape-") ? "shape" : "baseline";
 }
 
-function latestByTaskConditionLevel(files) {
-  const latest = new Map();
+async function latestByTaskConditionLevel(files: string[]) {
+  const latest = new Map<string, { file: string; result: any; mtimeMs: number }>();
 
   for (const file of files) {
-    const result = JSON.parse(fs.readFileSync(file, "utf8"));
+    const result = await readJson<any>(file);
     const taskId = result.taskId ?? "commerce-ledger";
     const key = `${taskId}:${conditionForFile(file)}:${result.level}`;
     const previous = latest.get(key);
-    const mtimeMs = fs.statSync(file).mtimeMs;
+    const mtimeMs = await modifiedTime(file);
     if (!previous || previous.mtimeMs < mtimeMs) {
       latest.set(key, { file, result, mtimeMs });
     }
@@ -42,7 +26,7 @@ function latestByTaskConditionLevel(files) {
   return latest;
 }
 
-const latest = latestByTaskConditionLevel(walkEvaluations(runsDir));
+const latest = await latestByTaskConditionLevel(await walkEvaluations(runsDir));
 
 const rows = taskIds.map((taskId) => {
   const l0 = latest.get(`${taskId}:baseline:L0`)?.result ?? null;

@@ -1,9 +1,16 @@
-export function createBehaviorHarness(baseUrl, expectedAssertions) {
-  const failures = [];
+type Failure = { name: string; detail: string };
+type JsonResponse = {
+  response: Response;
+  text: string;
+  json: any;
+};
+
+export function createBehaviorHarness(baseUrl: string, expectedAssertions: number) {
+  const failures: Failure[] = [];
   let passed = 0;
   let total = 0;
 
-  function check(name, condition, detail = "") {
+  function check(name: string, condition: boolean, detail = "") {
     total += 1;
     if (condition) {
       passed += 1;
@@ -12,9 +19,15 @@ export function createBehaviorHarness(baseUrl, expectedAssertions) {
     failures.push({ name, detail });
   }
 
-  async function request(method, path, body, token, extraHeaders = {}) {
-    const headers = { ...extraHeaders };
-    const init = { method, headers };
+  async function request(
+    method: string,
+    path: string,
+    body?: unknown,
+    token?: string,
+    extraHeaders: Record<string, string> = {},
+  ): Promise<JsonResponse> {
+    const headers: Record<string, string> = { ...extraHeaders };
+    const init: RequestInit = { method, headers };
     if (token) headers.authorization = `Token ${token}`;
     if (body !== undefined) {
       headers["content-type"] = "application/json";
@@ -34,8 +47,9 @@ export function createBehaviorHarness(baseUrl, expectedAssertions) {
     return { response, text, json };
   }
 
-  function exception(error) {
-    failures.push({ name: "test runner exception", detail: String(error?.stack ?? error) });
+  function exception(error: unknown) {
+    const detail = error instanceof Error ? (error.stack ?? error.message) : String(error);
+    failures.push({ name: "test runner exception", detail });
     total = Math.max(total, expectedAssertions);
   }
 
@@ -51,19 +65,18 @@ export function createBehaviorHarness(baseUrl, expectedAssertions) {
   return { check, request, exception, result };
 }
 
-export function isObject(value) {
+export function isObject(value: unknown): value is Record<string, any> {
   return value !== null && typeof value === "object" && !Array.isArray(value);
 }
 
-export function isIsoString(value) {
+export function isIsoString(value: unknown): boolean {
   return typeof value === "string" && !Number.isNaN(Date.parse(value));
 }
 
-export function hasSameMembers(actual, expected) {
+export function hasSameMembers(actual: unknown, expected: unknown[]): boolean {
   return (
     Array.isArray(actual) &&
     actual.length === expected.length &&
     expected.every((item) => actual.includes(item))
   );
 }
-

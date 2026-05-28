@@ -1,17 +1,13 @@
-import path from "node:path";
-import { fileURLToPath } from "node:url";
+import { joinPath, pathFromImport } from "./bun-utils.ts";
 
-export const harnessDir = path.resolve(
-  path.dirname(fileURLToPath(import.meta.url)),
-  "..",
-);
+export const harnessDir = pathFromImport(import.meta.url, "..");
 
 export const repoRoot = harnessDir;
-export const promptsDir = path.join(harnessDir, "prompts");
-export const runsDir = path.join(harnessDir, "runs");
-export const tasksDir = path.join(harnessDir, "tasks");
+export const promptsDir = joinPath(harnessDir, "prompts");
+export const runsDir = joinPath(harnessDir, "runs");
+export const tasksDir = joinPath(harnessDir, "tasks");
 export const defaultPort = 3137;
-export const bunBin = process.env.BUN_BIN ?? "bun";
+export const bunBin = Bun.env.BUN_BIN ?? "bun";
 
 export const levels = ["L0", "L1", "L2", "L3"];
 export const conditions = ["baseline", "shape"];
