@@ -69,7 +69,7 @@ async function candidateFiles(root: string, language: string): Promise<string[]>
 async function readAllSource(root: string, language: string): Promise<string> {
   const files = (await candidateFiles(root, language)).filter(
     (file) =>
-      !/bun\.lock|Cargo\.lock|go\.sum|package-lock\.json|npm-shrinkwrap\.json|pnpm-lock\.yaml|yarn\.lock/.test(
+      !/bun\.lock|Cargo\.lock|go\.sum|package-lock\.json|npm-shrinkwrap\.json|pnpm-lock\.yaml|uv\.lock|yarn\.lock/.test(
         file,
       ),
   );
@@ -109,9 +109,10 @@ function isRegistrySpec(spec: string | null): boolean {
   );
 }
 
-function hasPythonRequirement(requirements: string, name: string): boolean {
-  const pattern = new RegExp(`^\\s*${name.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}\\b`, "im");
-  return pattern.test(requirements);
+function hasPythonDependency(manifest: string, name: string): boolean {
+  const escaped = name.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+  const pattern = new RegExp(`(^|[\\s"',\\[])${escaped}(?:\\[[^\\]]+\\])?(?=\\s|[<>=~!;,'"\\]]|$)`, "im");
+  return pattern.test(manifest);
 }
 
 function hasGoModule(goMod: string, name: string): boolean {
@@ -152,13 +153,19 @@ async function verifyJavascriptFramework(root: string): Promise<VerificationSect
 
 async function verifyPythonFramework(root: string): Promise<VerificationSection> {
   const details: string[] = [];
-  const requirements = await maybeRead(root, "requirements.txt");
+  const pyproject = await maybeRead(root, "pyproject.toml");
   const source = await readAllSource(root, "python");
 
-  if (!requirements) details.push("missing requirements.txt");
+  if (!pyproject) details.push("missing pyproject.toml");
   if (!(await exists(joinPath(root, "server.py")))) details.push("missing top-level server.py");
-  if (!hasPythonRequirement(requirements, "fastapi")) details.push("fastapi must be declared in requirements.txt");
-  if (!hasPythonRequirement(requirements, "uvicorn")) details.push("uvicorn must be declared in requirements.txt");
+  if (!/\bname\s*=/.test(pyproject)) details.push("pyproject.toml must declare project name");
+  if (!/\bversion\s*=/.test(pyproject)) details.push("pyproject.toml must declare project version");
+  if (!/requires-python\s*=/.test(pyproject)) details.push("pyproject.toml must declare requires-python");
+  if (!/\[tool\.uv\][\s\S]*?\bpackage\s*=\s*false\b/.test(pyproject)) {
+    details.push("pyproject.toml must set [tool.uv] package = false");
+  }
+  if (!hasPythonDependency(pyproject, "fastapi")) details.push("fastapi must be declared in pyproject.toml");
+  if (!hasPythonDependency(pyproject, "uvicorn")) details.push("uvicorn must be declared in pyproject.toml");
   if (!/\bFastAPI\s*\(/.test(source)) details.push("no FastAPI app evidence found");
 
   return { required: true, passed: details.length === 0, details };
@@ -312,12 +319,14 @@ async function verifyDatabase(root: string, level: string, language: string): Pr
 
   const source = await readAllSource(root, language);
   const goMod = await maybeRead(root, "go.mod");
+  const pyproject = await maybeRead(root, "pyproject.toml");
   const requirements = await maybeRead(root, "requirements.txt");
+  const pythonManifest = `${pyproject}\n${requirements}`;
   const cargoToml = await maybeRead(root, "Cargo.toml");
   let found = false;
 
   if (language === "python") {
-    found = /\bsqlite3\b|sqlite:\/\//i.test(source) || /sqlite/i.test(requirements);
+    found = /\bsqlite3\b|sqlite:\/\//i.test(source) || /sqlite/i.test(pythonManifest);
   } else if (language === "go") {
     const goText = `${source}\n${goMod}`;
     found =
@@ -371,12 +380,12 @@ async function verifyJavascriptOrm(root: string): Promise<VerificationSection> {
 
 async function verifyPythonOrm(root: string): Promise<VerificationSection> {
   const source = await readAllSource(root, "python");
-  const requirements = await maybeRead(root, "requirements.txt");
+  const pyproject = await maybeRead(root, "pyproject.toml");
   const rawSqlHints = [...source.matchAll(/\b(SELECT|INSERT|UPDATE|DELETE)\b/gi)].length;
   const details: string[] = [];
 
   if (!/\bsqlalchemy\b/i.test(source)) details.push("no SQLAlchemy evidence found");
-  if (!hasPythonRequirement(requirements, "sqlalchemy")) details.push("sqlalchemy must be declared in requirements.txt");
+  if (!hasPythonDependency(pyproject, "sqlalchemy")) details.push("sqlalchemy must be declared in pyproject.toml");
 
   return { required: true, passed: details.length === 0, details, rawSqlHints };
 }

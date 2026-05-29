@@ -28,7 +28,7 @@ Levels:
 Language profiles:
 
 - `javascript`: Express, SQLite, Sequelize.
-- `python`: FastAPI, `sqlite3`, SQLAlchemy.
+- `python`: FastAPI managed by uv, `sqlite3`, SQLAlchemy.
 - `go`: `net/http` ServeMux, `database/sql`, GORM.
 - `rust`: axum, SQLx SQLite, SeaORM.
 

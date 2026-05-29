@@ -91,27 +91,46 @@ ${sharedLayering}
   python: {
     label: "Python / FastAPI",
     candidateKind: "Python 3.12 REST API server",
-    requirements: `- Use Python only.
+    requirements: `- Use Python 3.12 only.
 - Use FastAPI for HTTP routing and Uvicorn for serving HTTP.
 - Work only in the current directory.
-- Create a \`requirements.txt\` file with normal PyPI dependency specifiers.
-- Include \`fastapi\` and \`uvicorn\` in \`requirements.txt\`.
-- Do not vendor dependencies or create a local virtual environment yourself.
+- Use uv for Python dependency and environment management.
+- Create a \`pyproject.toml\` with a \`[project]\` table,
+  \`name = "candidate-api"\`, \`version = "0.1.0"\`,
+  \`requires-python = ">=3.12,<3.13"\`, and a \`dependencies = [...]\` list
+  inside \`[project]\`.
+- Set \`[tool.uv] package = false\` because this is an application, not an
+  installable Python package.
+- Include \`fastapi\` and \`uvicorn[standard]\` in the \`[project]\`
+  dependency list.
+- Do not create \`requirements.txt\`, Pipfile, Poetry files, vendored
+  dependencies, or a virtual environment by hand. uv may create \`.venv\` if
+  you run \`uv sync\`; do not edit or vendor that directory.
 - Create a top-level \`server.py\`.
-- The evaluator will run \`python server.py\`; that command must start the HTTP
-  server without additional arguments.
+- The evaluator will run \`uv sync --python 3.12\`, then
+  \`.venv/bin/python server.py\`; that command must start the HTTP server
+  without additional arguments.
 - The server must listen on \`os.environ["PORT"]\`, defaulting to \`3137\` when
   the environment variable is unset.
 - All API routes must be prefixed with \`/api\`.
 - \`GET /api/health-check\` must return HTTP 200.
 - Use JSON request and response bodies unless a task-specific rule says
   otherwise.
+- FastAPI endpoint parameters with defaults, including optional headers and
+  dependencies, must come after non-default parameters. Put \`Response\` or
+  required body/path parameters before optional header parameters.
+- For optional FastAPI headers with \`Annotated\`, write
+  \`authorization: Annotated[str | None, Header()] = None\`. Do not put
+  \`default=\` inside \`Header(...)\` when \`Header\` is inside \`Annotated\`.
+- Never use \`import *\` inside a function.
+- Before finishing, run \`uv sync --python 3.12\` and a Python syntax check such
+  as \`.venv/bin/python -m py_compile $(find . -name '*.py' -not -path './.venv/*')\`;
+  fix any failures.
 - Implement all behavior from the OpenAPI specification.`,
-    evaluation: `1. Create an isolated virtual environment.
-2. Run \`python -m pip install -r requirements.txt\`.
-3. Run \`python server.py\`.
-4. Poll \`GET /api/health-check\`.
-5. Execute black-box HTTP tests against the API.`,
+    evaluation: `1. Run \`uv sync --python 3.12\`.
+2. Run \`.venv/bin/python server.py\`.
+3. Poll \`GET /api/health-check\`.
+4. Execute black-box HTTP tests against the API.`,
     constraintBlocks: {
       L0: `## Structural Constraints
 
@@ -137,6 +156,7 @@ ${sharedLayering}
 - Persist all task entities and mutable state in SQLite.
 - Create the SQLite schema automatically on server startup.
 - Use SQLAlchemy ORM for model definitions and data access.
+- Declare \`sqlalchemy\` in the \`[project]\` dependency list.
 - Do not use raw SQL as the primary data-access mechanism.
 `,
     },
@@ -157,7 +177,11 @@ ${sharedLayering}
 - Do not use Gin, chi, Echo, Fiber, Gorilla mux, or other HTTP frameworks.
 - Work only in the current directory.
 - Create a \`go.mod\` file and a runnable \`main.go\`.
-- Use normal Go module dependencies. Do not vendor dependencies.
+- \`go.mod\` must declare a module name and a \`go\` directive. It is acceptable
+  for \`go.mod\` to contain only those lines when third-party packages are used;
+  the evaluator runs \`go mod tidy\` to resolve imports.
+- Use normal Go module dependencies. Do not vendor dependencies and do not
+  hand-pin guessed or fictional module versions.
 - The evaluator will run \`go run .\`; that command must start the HTTP server
   without additional arguments.
 - The server must listen on \`os.Getenv("PORT")\`, defaulting to \`3137\` when
@@ -166,12 +190,18 @@ ${sharedLayering}
 - \`GET /api/health-check\` must return HTTP 200.
 - Use JSON request and response bodies unless a task-specific rule says
   otherwise.
+- Define named request, response, and domain structs and reuse those types across
+  helpers. Do not pass anonymous struct types across function boundaries.
+- Keep numeric money/count fields on one integer type throughout a calculation.
+- Remove unused imports and undefined identifiers before finishing.
+- Before finishing, run \`go mod tidy\` and \`go build ./...\`; fix any failures.
 - Implement all behavior from the OpenAPI specification.`,
-    evaluation: `1. Run \`go mod download\`.
-2. Run \`go build ./...\`.
-3. Run \`go run .\`.
-4. Poll \`GET /api/health-check\`.
-5. Execute black-box HTTP tests against the API.`,
+    evaluation: `1. Run \`go mod tidy\`.
+2. Run \`go mod download\`.
+3. Run \`go build ./...\`.
+4. Run \`go run .\`.
+5. Poll \`GET /api/health-check\`.
+6. Execute black-box HTTP tests against the API.`,
     constraintBlocks: {
       L0: `## Structural Constraints
 
@@ -188,6 +218,8 @@ ${sharedLayering}
 ${sharedLayering}
 - Persist all task entities and mutable state in SQLite using \`database/sql\`
   with the pure-Go \`modernc.org/sqlite\` driver.
+- Import \`modernc.org/sqlite\` for its database/sql driver side effect and let
+  \`go mod tidy\` resolve the module version.
 - Create the SQLite schema automatically on server startup.
 - Do not use in-memory-only storage for persisted entities.
 `,
@@ -198,6 +230,8 @@ ${sharedLayering}
 - Create the SQLite schema automatically on server startup.
 - Use GORM with \`gorm.io/gorm\` and \`gorm.io/driver/sqlite\` for model
   definitions and data access.
+- Import \`gorm.io/gorm\` and \`gorm.io/driver/sqlite\` in code and let
+  \`go mod tidy\` resolve valid module versions.
 - Do not use raw SQL as the primary data-access mechanism.
 `,
     },
@@ -213,11 +247,15 @@ ${sharedLayering}
   rust: {
     label: "Rust / axum",
     candidateKind: "Rust REST API server",
-    requirements: `- Use stable Rust.
-- Use axum for HTTP routing and Tokio for the async runtime.
+    requirements: `- Use stable Rust with Cargo edition 2021.
+- Do not create a \`rust-toolchain\` file and do not require nightly Rust.
+- Use axum 0.8 for HTTP routing and Tokio 1 for the async runtime.
 - Work only in the current directory.
 - Create a \`Cargo.toml\` file and a runnable \`src/main.rs\`.
-- Use normal crates.io dependencies. Do not vendor dependencies.
+- \`Cargo.toml\` must include a \`[package]\` table, \`edition = "2021"\`, and
+  normal crates.io dependencies. Do not vendor dependencies.
+- Use one coherent axum version across the project. Avoid mixing examples from
+  axum 0.6, 0.7, and 0.8.
 - The evaluator will run \`cargo run --quiet\`; that command must start the HTTP
   server without additional arguments.
 - The server must listen on \`std::env::var("PORT")\`, defaulting to \`3137\`
@@ -226,6 +264,15 @@ ${sharedLayering}
 - \`GET /api/health-check\` must return HTTP 200.
 - Use JSON request and response bodies unless a task-specific rule says
   otherwise.
+- Every \`mod foo;\` declaration must have a matching \`src/foo.rs\` or
+  \`src/foo/mod.rs\` file, and every sibling module import should use
+  \`crate::...\` paths.
+- Handler return types must be type-consistent. Prefer returning
+  \`axum::response::Response\` and ending every branch with
+  \`.into_response()\` when branches return different JSON/error shapes.
+- Avoid holding overlapping mutable borrows across later mutations; clone IDs or
+  split operations into separate scopes before mutating the same state again.
+- Before finishing, run \`cargo build --quiet\`; fix any failures.
 - Implement all behavior from the OpenAPI specification.`,
     evaluation: `1. Run \`cargo fetch\`.
 2. Run \`cargo build --quiet\`.
@@ -248,6 +295,8 @@ ${sharedLayering}
 ${sharedLayering}
 - Persist all task entities and mutable state in SQLite using SQLx with the
   \`sqlite\` and Tokio runtime features enabled.
+- Declare SQLx as
+  \`sqlx = { version = "0.8", features = ["runtime-tokio-rustls", "sqlite"] }\`.
 - Create the SQLite schema automatically on server startup.
 - Do not use in-memory-only storage for persisted entities.
 `,
@@ -257,6 +306,15 @@ ${sharedLayering}
 - Persist all task entities and mutable state in SQLite.
 - Create the SQLite schema automatically on server startup.
 - Use SeaORM with SQLite for entity definitions and data access.
+- Declare SeaORM as
+  \`sea-orm = { version = "1.1", features = ["sqlx-sqlite", "runtime-tokio-rustls", "macros"] }\`.
+- Import the SeaORM traits required by the methods you call, such as
+  \`ActiveModelTrait\`, \`ColumnTrait\`, \`ConnectionTrait\`, \`EntityTrait\`,
+  \`PaginatorTrait\`, \`QueryFilter\`, \`QueryOrder\`, and \`Set\`.
+- Use \`sea_orm::sea_query\` re-exports instead of importing a separate
+  \`sea_query\` crate unless you declare that crate explicitly.
+- For entities without relations, derive \`DeriveRelation\` on the empty
+  \`Relation\` enum so \`RelationTrait\` is implemented.
 - Do not use raw SQL as the primary data-access mechanism.
 `,
     },

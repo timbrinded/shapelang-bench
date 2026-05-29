@@ -21,6 +21,7 @@ package-lock.json
 pnpm-lock.yaml
 yarn.lock
 npm-shrinkwrap.json
+uv.lock
 go.sum
 Cargo.lock
 *.sqlite

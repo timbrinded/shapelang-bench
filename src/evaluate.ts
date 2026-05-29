@@ -41,6 +41,7 @@ const ignoredPackageArtifacts = new Set([
   "package-lock.json",
   "npm-shrinkwrap.json",
   "pnpm-lock.yaml",
+  "uv.lock",
   "yarn.lock",
 ]);
 
@@ -95,19 +96,12 @@ function serverExitDetail(
   return trimDetail(sections.join("\n\n"));
 }
 
-async function executableOnPath(command: string, cwd: string): Promise<string | null> {
-  const result = await runProcess("sh", ["-lc", `command -v ${command}`], {
-    cwd,
-    timeoutMs: 5_000,
-    env: { ...Bun.env, PATH: Bun.env.PATH ?? "" },
-  });
-  const executable = result.stdout.trim();
-  return result.code === 0 && executable ? executable : null;
+function pythonRequest(): string {
+  return Bun.env.PYTHON_BIN ?? "3.12";
 }
 
-async function pythonBin(cwd: string): Promise<string> {
-  if (Bun.env.PYTHON_BIN) return Bun.env.PYTHON_BIN;
-  return (await executableOnPath("python3.12", cwd)) ?? "python3";
+function uvBin(): string {
+  return Bun.env.UV_BIN ?? "uv";
 }
 
 function rustEnv(base: Record<string, string | undefined>): Record<string, string | undefined> {
@@ -191,27 +185,40 @@ async function installCandidate(candidateDir: string, language: string) {
   }
 
   if (language === "python") {
-    if (!(await exists(joinPath(candidateDir, "requirements.txt")))) {
-      return { code: 1, stdout: "", stderr: "missing requirements.txt", timedOut: false };
+    const uv = uvBin();
+    const python = pythonRequest();
+    const hasPyproject = await exists(joinPath(candidateDir, "pyproject.toml"));
+    const hasRequirements = await exists(joinPath(candidateDir, "requirements.txt"));
+
+    if (hasPyproject) {
+      const sync = await runProcess(uv, ["sync", "--python", python], {
+        cwd: candidateDir,
+        timeoutMs: 240_000,
+        env,
+      });
+      return combineResults([{ label: `${uv} sync --python ${python}`, result: sync }]);
     }
-    const python = await pythonBin(candidateDir);
-    const venv = await runProcess(python, ["-m", "venv", ".venv"], {
+
+    if (!hasRequirements) {
+      return { code: 1, stdout: "", stderr: "missing pyproject.toml", timedOut: false };
+    }
+    const venv = await runProcess(uv, ["venv", "--python", python, ".venv"], {
       cwd: candidateDir,
-      timeoutMs: 60_000,
+      timeoutMs: 120_000,
       env,
     });
     if (venv.code !== 0 || venv.timedOut) {
-      return combineResults([{ label: `${python} -m venv .venv`, result: venv }]);
+      return combineResults([{ label: `${uv} venv --python ${python} .venv`, result: venv }]);
     }
     const pipPython = joinPath(candidateDir, ".venv", "bin", "python");
-    const pip = await runProcess(pipPython, ["-m", "pip", "install", "-r", "requirements.txt"], {
+    const pip = await runProcess(uv, ["pip", "install", "--python", pipPython, "-r", "requirements.txt"], {
       cwd: candidateDir,
-      timeoutMs: 180_000,
+      timeoutMs: 240_000,
       env,
     });
     return combineResults([
-      { label: `${python} -m venv .venv`, result: venv },
-      { label: `${pipPython} -m pip install -r requirements.txt`, result: pip },
+      { label: `${uv} venv --python ${python} .venv`, result: venv },
+      { label: `${uv} pip install --python ${pipPython} -r requirements.txt`, result: pip },
     ]);
   }
 
@@ -220,23 +227,23 @@ async function installCandidate(candidateDir: string, language: string) {
       return { code: 1, stdout: "", stderr: "missing go.mod", timedOut: false };
     }
     const go = Bun.env.GO_BIN ?? "go";
-    const download = await runProcess(go, ["mod", "download"], {
-      cwd: candidateDir,
-      timeoutMs: 120_000,
-      env,
-    });
-    if (download.code !== 0 || download.timedOut) {
-      return combineResults([{ label: `${go} mod download`, result: download }]);
-    }
     const tidy = await runProcess(go, ["mod", "tidy"], {
       cwd: candidateDir,
       timeoutMs: 120_000,
       env,
     });
     if (tidy.code !== 0 || tidy.timedOut) {
+      return combineResults([{ label: `${go} mod tidy`, result: tidy }]);
+    }
+    const download = await runProcess(go, ["mod", "download"], {
+      cwd: candidateDir,
+      timeoutMs: 120_000,
+      env,
+    });
+    if (download.code !== 0 || download.timedOut) {
       return combineResults([
-        { label: `${go} mod download`, result: download },
         { label: `${go} mod tidy`, result: tidy },
+        { label: `${go} mod download`, result: download },
       ]);
     }
     const buildDir = joinPath(candidateDir, ".bench-bin");
@@ -249,8 +256,8 @@ async function installCandidate(candidateDir: string, language: string) {
       env,
     });
     return combineResults([
-      { label: `${go} mod download`, result: download },
       { label: `${go} mod tidy`, result: tidy },
+      { label: `${go} mod download`, result: download },
       { label: `${go} build -o ${outputPath} .`, result: build },
     ]);
   }
@@ -456,7 +463,7 @@ if (install.code === 0 && !install.timedOut) {
   }
 }
 
-const structure = await verifyCandidate(candidateDir, level, language);
+const structure = await verifyCandidate(evaluationDir, level, language);
 const result = {
   candidateDir,
   evaluationDir,

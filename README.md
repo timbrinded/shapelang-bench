@@ -36,8 +36,10 @@ treated as controls or quarantine cases until their L0 baselines are stable.
 
 - Bun on `PATH`, or set `BUN_BIN=/path/to/bun`.
 - Run `bun install` once to install the TypeScript checker used by the harness.
-- For non-JavaScript candidates, install the relevant runtime on `PATH`, or set
-  `PYTHON_BIN`, `GO_BIN`, or `CARGO_BIN`.
+- For Python candidates, install `uv` on `PATH`, or set `UV_BIN`; the evaluator
+  asks uv for Python 3.12 unless `PYTHON_BIN` is set.
+- For Go and Rust candidates, install the relevant runtime on `PATH`, or set
+  `GO_BIN` or `CARGO_BIN`.
 - Codex CLI on `PATH` for agent runs.
 - Shape CLI is optional for now; the current verifier checks generated Shape
   artifacts structurally rather than invoking `shp`.
@@ -85,11 +87,13 @@ databases, and Git metadata so agent-side package artifacts do not contaminate
 benchmark results.
 
 The evaluator also applies narrow runtime normalizations before scoring:
-Python candidates prefer `python3.12` when `PYTHON_BIN` is unset, Rust candidates
-run under the stable Rust toolchain when `RUSTUP_TOOLCHAIN` is unset, and
-JavaScript candidates may receive a start-file shim only when `package.json`
-points at a missing `.js` entrypoint and a clear Express app module exists.
-These normalizations are recorded in `evaluation.json`.
+Python candidates install through `uv sync --python 3.12` from `pyproject.toml`
+when `PYTHON_BIN` is unset, Go candidates run `go mod tidy` before
+download/build so imports drive module resolution, Rust candidates run under the
+stable Rust toolchain when `RUSTUP_TOOLCHAIN` is unset, and JavaScript candidates
+may receive a start-file shim only when `package.json` points at a missing `.js`
+entrypoint and a clear Express app module exists. These normalizations are
+recorded in `evaluation.json`.
 
 See `docs/methodology.md` and `EXPERIMENTS.md` for the current interpretation of
 the local experiments.
