@@ -72,7 +72,10 @@ bun src/calibrate.ts --model gpt-5.3-codex-spark
 ```
 
 Calibration accepts a task only when L0 is clean or near-clean, L3 decays, and
-the failure is not an install/startup artifact or prompt ambiguity.
+the comparison has enough phase information to distinguish behavior decay from
+install or startup failure. Pre-behavior failures are reported as `phase:
+install` or `phase: startup` with `assertionPassRate: null`; they are not
+counted as synthetic `0/1` behavior-test results.
 
 ## Evaluation Hygiene
 

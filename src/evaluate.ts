@@ -21,8 +21,15 @@ import {
 } from "./bun-utils.ts";
 
 type RunningServer = {
+  exitCode: () => number | null | undefined;
+  hasExited: () => boolean;
   logs: () => { stdout: string; stderr: string };
   stop: () => Promise<void>;
+};
+
+type ReadinessResult = {
+  ready: boolean;
+  failure?: { name: string; detail: string };
 };
 
 const ignoredPackageArtifacts = new Set([
@@ -64,6 +71,28 @@ function trimDetail(value: string, maxLength = 4_000): string {
   if (value.length <= maxLength) return value;
   const side = Math.floor((maxLength - 32) / 2);
   return `${value.slice(0, side)}\n... truncated ...\n${value.slice(-side)}`;
+}
+
+function preBehaviorFailure(name: string, detail: string) {
+  return {
+    assertionsPassed: 0,
+    assertionsTotal: 0,
+    assertionPassRate: null,
+    failures: [{ name, detail: trimDetail(detail) }],
+  };
+}
+
+function serverExitDetail(
+  failure: { name: string; detail: string },
+  server: RunningServer,
+): string {
+  const logs = server.logs();
+  const sections = [
+    failure.detail,
+    logs.stdout ? `stdout:\n${logs.stdout}` : "",
+    logs.stderr ? `stderr:\n${logs.stderr}` : "",
+  ].filter(Boolean);
+  return trimDetail(sections.join("\n\n"));
 }
 
 async function installCandidate(candidateDir: string, language: string) {
@@ -191,6 +220,11 @@ async function startServer(candidateDir: string, port: number, language: string)
 
   let stdout = "";
   let stderr = "";
+  let exitCode: number | null | undefined;
+  const exited = child.exited.then((code) => {
+    exitCode = code;
+    return code;
+  });
   const stdoutText = new Response(child.stdout).text().then((text) => {
     stdout = text;
   });
@@ -199,26 +233,52 @@ async function startServer(candidateDir: string, port: number, language: string)
   });
 
   return {
+    exitCode: () => exitCode,
+    hasExited: () => exitCode !== undefined,
     logs: () => ({ stdout, stderr }),
     stop: async () => {
-      child.kill("SIGTERM");
-      await Promise.allSettled([child.exited, stdoutText, stderrText]);
+      if (exitCode === undefined) {
+        child.kill("SIGTERM");
+      }
+      await Promise.allSettled([exited, stdoutText, stderrText]);
     },
   };
 }
 
-async function waitForHealth(baseUrl: string, timeoutMs: number): Promise<boolean> {
+async function waitForHealth(
+  baseUrl: string,
+  timeoutMs: number,
+  server: RunningServer,
+): Promise<ReadinessResult> {
   const start = Date.now();
+  let lastStatus = "";
   while (Date.now() - start < timeoutMs) {
+    if (server.hasExited()) {
+      return {
+        ready: false,
+        failure: {
+          name: "server exited before health check",
+          detail: `server process exited with code ${server.exitCode() ?? "unknown"}`,
+        },
+      };
+    }
     try {
       const response = await fetch(`${baseUrl}/api/health-check`);
-      if (response.status === 200) return true;
-    } catch {
+      lastStatus = `last health status ${response.status}`;
+      if (response.status === 200) return { ready: true };
+    } catch (error) {
+      lastStatus = error instanceof Error ? error.message : String(error);
       // Keep polling until timeout.
     }
     await Bun.sleep(250);
   }
-  return false;
+  return {
+    ready: false,
+    failure: {
+      name: "health check timeout",
+      detail: lastStatus ? `server did not become ready (${lastStatus})` : "server did not become ready",
+    },
+  };
 }
 
 function shouldCopy(relative: string): boolean {
@@ -266,38 +326,44 @@ if (!languageIds.includes(language)) {
 const evaluationDir = await createEvaluationDir(candidateDir, outPath);
 const install = await installCandidate(evaluationDir, language);
 
-let behavior = {
-  assertionsPassed: 0,
-  assertionsTotal: 1,
-  assertionPassRate: 0,
-  failures: [
-    {
-      name: install.timedOut ? "install timeout" : "install failed",
-      detail: trimDetail(install.stderr || install.stdout || "install failed before server start"),
-    },
-  ],
-};
+let phase = "install";
+let behavior = preBehaviorFailure(
+  install.timedOut ? "install timeout" : "install failed",
+  install.stderr || install.stdout || "install failed before server start",
+);
 let serverLogs = { stdout: "", stderr: "" };
 let healthReady = false;
 
 if (install.code === 0 && !install.timedOut) {
+  phase = "startup";
   const server = await startServer(evaluationDir, port, language);
+  let readiness: ReadinessResult = {
+    ready: false,
+    failure: { name: "health check timeout", detail: "server did not become ready" },
+  };
   try {
     const baseUrl = `http://127.0.0.1:${port}`;
-    healthReady = await waitForHealth(baseUrl, healthTimeoutMs);
-    if (healthReady) {
+    readiness = await waitForHealth(baseUrl, healthTimeoutMs, server);
+    healthReady = readiness.ready;
+    if (readiness.ready) {
+      phase = "behavior";
       behavior = await runBehaviorTests(taskId, baseUrl);
-    } else {
-      behavior = {
-        assertionsPassed: 0,
-        assertionsTotal: 1,
-        assertionPassRate: 0,
-        failures: [{ name: "health check timeout", detail: "server did not become ready" }],
-      };
     }
   } finally {
     await server.stop();
     serverLogs = server.logs();
+  }
+  if (!readiness.ready) {
+    const failure = readiness.failure ?? {
+      name: "health check timeout",
+      detail: "server did not become ready",
+    };
+    behavior = preBehaviorFailure(
+      failure.name,
+      failure.name === "server exited before health check"
+        ? serverExitDetail(failure, server)
+        : failure.detail,
+    );
   }
 }
 
@@ -310,6 +376,7 @@ const result = {
   condition,
   level,
   taskId,
+  phase,
   port,
   install,
   healthReady,
@@ -332,7 +399,11 @@ console.log(
       language,
       condition,
       taskId,
-      assertions: `${behavior.assertionsPassed}/${behavior.assertionsTotal}`,
+      phase,
+      assertions:
+        behavior.assertionsTotal > 0
+          ? `${behavior.assertionsPassed}/${behavior.assertionsTotal}`
+          : "not run",
       assertionPassRate: behavior.assertionPassRate,
       structurePassed: structure.passed,
       passed: result.passed,

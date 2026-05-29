@@ -33,8 +33,8 @@ export async function runBehaviorTests(taskId, baseUrl) {
   if (!runner) {
     return {
       assertionsPassed: 0,
-      assertionsTotal: 1,
-      assertionPassRate: 0,
+      assertionsTotal: 0,
+      assertionPassRate: null,
       failures: [{ name: "unknown task", detail: taskId }],
     };
   }
