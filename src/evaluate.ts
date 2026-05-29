@@ -113,6 +113,17 @@ async function installCandidate(candidateDir: string, language: string) {
     if (download.code !== 0 || download.timedOut) {
       return combineResults([{ label: `${go} mod download`, result: download }]);
     }
+    const tidy = await runProcess(go, ["mod", "tidy"], {
+      cwd: candidateDir,
+      timeoutMs: 120_000,
+      env,
+    });
+    if (tidy.code !== 0 || tidy.timedOut) {
+      return combineResults([
+        { label: `${go} mod download`, result: download },
+        { label: `${go} mod tidy`, result: tidy },
+      ]);
+    }
     const buildDir = joinPath(candidateDir, ".bench-bin");
     await removePath(buildDir);
     await makeDir(buildDir);
@@ -124,6 +135,7 @@ async function installCandidate(candidateDir: string, language: string) {
     });
     return combineResults([
       { label: `${go} mod download`, result: download },
+      { label: `${go} mod tidy`, result: tidy },
       { label: `${go} build -o ${outputPath} .`, result: build },
     ]);
   }
@@ -237,6 +249,7 @@ const args = parseArgs();
 const candidateDir = args.candidate ? resolvePath(args.candidate) : "";
 const level = args.level ?? "L0";
 const taskId = args.task ?? "commerce-ledger";
+const condition = args.condition ?? null;
 const model = args.model ?? "unknown";
 const language = args.language ?? defaultLanguage;
 const port = Number(args.port ?? defaultPort);
@@ -294,6 +307,7 @@ const result = {
   evaluationDir,
   model,
   language,
+  condition,
   level,
   taskId,
   port,
@@ -316,6 +330,7 @@ console.log(
       level,
       model,
       language,
+      condition,
       taskId,
       assertions: `${behavior.assertionsPassed}/${behavior.assertionsTotal}`,
       assertionPassRate: behavior.assertionPassRate,

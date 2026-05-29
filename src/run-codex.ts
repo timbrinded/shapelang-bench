@@ -156,6 +156,8 @@ for (const level of selectedLevels) {
         language,
         "--task",
         taskId,
+        "--condition",
+        condition,
         "--candidate",
         workDir,
         "--level",

@@ -2,18 +2,24 @@ import { runsDir } from "./config.ts";
 import {
   basename,
   dirname,
+  exists,
   joinPath,
-  listFiles,
   parseArgs,
   readJson,
   relativePath,
 } from "./bun-utils.ts";
 
 async function findEvaluations(root: string): Promise<string[]> {
-  return (await listFiles(root)).filter((file) => {
-    const name = basename(file);
-    return name === "evaluation.json" || name === "reference-l0.json" || name === "reference-l3.json";
-  });
+  if (!(await exists(root))) return [];
+
+  const files: string[] = [];
+  for await (const relative of new Bun.Glob("*/*.json").scan({ cwd: root, dot: true })) {
+    const name = basename(String(relative));
+    if (name === "evaluation.json" || name === "reference-l0.json" || name === "reference-l3.json") {
+      files.push(joinPath(root, String(relative)));
+    }
+  }
+  return files.sort();
 }
 
 const args = parseArgs();

@@ -1,9 +1,15 @@
 import { runsDir, taskIds } from "./config.ts";
-import { basename, listFiles, modifiedTime, parseArgs, readJson, relativePath } from "./bun-utils.ts";
+import { exists, joinPath, modifiedTime, parseArgs, readJson, relativePath } from "./bun-utils.ts";
 import { defaultLanguage, languageIds } from "./languages.ts";
 
 async function walkEvaluations(root: string): Promise<string[]> {
-  return (await listFiles(root)).filter((file) => basename(file) === "evaluation.json");
+  if (!(await exists(root))) return [];
+
+  const files: string[] = [];
+  for await (const relative of new Bun.Glob("*/evaluation.json").scan({ cwd: root, dot: true })) {
+    files.push(joinPath(root, String(relative)));
+  }
+  return files.sort();
 }
 
 function conditionForFile(file: string): "shape" | "baseline" {
