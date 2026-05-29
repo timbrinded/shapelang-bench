@@ -84,5 +84,12 @@ The evaluator strips `node_modules`, `.env`, package-manager lockfiles, SQLite
 databases, and Git metadata so agent-side package artifacts do not contaminate
 benchmark results.
 
+The evaluator also applies narrow runtime normalizations before scoring:
+Python candidates prefer `python3.12` when `PYTHON_BIN` is unset, Rust candidates
+run under the stable Rust toolchain when `RUSTUP_TOOLCHAIN` is unset, and
+JavaScript candidates may receive a start-file shim only when `package.json`
+points at a missing `.js` entrypoint and a clear Express app module exists.
+These normalizations are recorded in `evaluation.json`.
+
 See `docs/methodology.md` and `EXPERIMENTS.md` for the current interpretation of
 the local experiments.

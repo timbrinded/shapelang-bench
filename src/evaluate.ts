@@ -95,6 +95,92 @@ function serverExitDetail(
   return trimDetail(sections.join("\n\n"));
 }
 
+async function executableOnPath(command: string, cwd: string): Promise<string | null> {
+  const result = await runProcess("sh", ["-lc", `command -v ${command}`], {
+    cwd,
+    timeoutMs: 5_000,
+    env: { ...Bun.env, PATH: Bun.env.PATH ?? "" },
+  });
+  const executable = result.stdout.trim();
+  return result.code === 0 && executable ? executable : null;
+}
+
+async function pythonBin(cwd: string): Promise<string> {
+  if (Bun.env.PYTHON_BIN) return Bun.env.PYTHON_BIN;
+  return (await executableOnPath("python3.12", cwd)) ?? "python3";
+}
+
+function rustEnv(base: Record<string, string | undefined>): Record<string, string | undefined> {
+  return {
+    ...base,
+    RUSTUP_TOOLCHAIN: base.RUSTUP_TOOLCHAIN ?? "stable",
+  };
+}
+
+function startScriptPath(command: string | undefined): string | null {
+  if (!command) return null;
+  const match = command.match(/^bun\s+(?:--watch\s+)?([^\s]+\.js)\b/);
+  return match?.[1] ?? null;
+}
+
+async function findJavaScriptAppModule(candidateDir: string): Promise<string | null> {
+  const candidates = [
+    "src/http-routes/app.js",
+    "src/httpRoutes/app.js",
+    "src/routes/app.js",
+    "src/app.js",
+    "app.js",
+  ];
+  for (const candidate of candidates) {
+    const path = joinPath(candidateDir, candidate);
+    if (!(await exists(path))) continue;
+    const text = await readText(path);
+    if (text.includes("module.exports") || text.includes("export default")) return candidate;
+  }
+  return null;
+}
+
+async function findJavaScriptPersistenceModule(candidateDir: string): Promise<string | null> {
+  const candidates = [
+    "src/persistence/database.js",
+    "src/persistence/db.js",
+    "src/db.js",
+    "db.js",
+  ];
+  for (const candidate of candidates) {
+    if (await exists(joinPath(candidateDir, candidate))) return candidate;
+  }
+  return null;
+}
+
+async function prepareJavaScriptCandidate(candidateDir: string): Promise<string[]> {
+  const packagePath = joinPath(candidateDir, "package.json");
+  if (!(await exists(packagePath))) return [];
+
+  const packageJson = JSON.parse(await readText(packagePath));
+  const startTarget = startScriptPath(packageJson.scripts?.start);
+  if (!startTarget || (await exists(joinPath(candidateDir, startTarget)))) return [];
+
+  const appModule = await findJavaScriptAppModule(candidateDir);
+  if (!appModule) return [];
+
+  const persistenceModule = await findJavaScriptPersistenceModule(candidateDir);
+  const initBlock = persistenceModule
+    ? `const persistence = require("./${persistenceModule}");\nconst init = persistence.initializeDatabase || persistence.initDatabase || persistence.initialize || persistence.connect || (() => undefined);\n`
+    : "const init = () => undefined;\n";
+
+  await writeText(
+    joinPath(candidateDir, startTarget),
+    `const appModule = require("./${appModule}");\n${initBlock}const app = appModule.default || appModule.app || appModule;\nconst port = Number(process.env.PORT || 3137);\nPromise.resolve(init()).then(() => {\n  app.listen(port, "0.0.0.0");\n}).catch((error) => {\n  console.error(error);\n  process.exit(1);\n});\n`,
+  );
+  return [`created JavaScript start shim at ${startTarget}`];
+}
+
+async function prepareCandidate(candidateDir: string, language: string): Promise<string[]> {
+  if (language === "javascript") return prepareJavaScriptCandidate(candidateDir);
+  return [];
+}
+
 async function installCandidate(candidateDir: string, language: string) {
   const env = { ...Bun.env, PATH: Bun.env.PATH ?? "" };
 
@@ -108,7 +194,7 @@ async function installCandidate(candidateDir: string, language: string) {
     if (!(await exists(joinPath(candidateDir, "requirements.txt")))) {
       return { code: 1, stdout: "", stderr: "missing requirements.txt", timedOut: false };
     }
-    const python = Bun.env.PYTHON_BIN ?? "python3";
+    const python = await pythonBin(candidateDir);
     const venv = await runProcess(python, ["-m", "venv", ".venv"], {
       cwd: candidateDir,
       timeoutMs: 60_000,
@@ -174,6 +260,7 @@ async function installCandidate(candidateDir: string, language: string) {
       return { code: 1, stdout: "", stderr: "missing Cargo.toml", timedOut: false };
     }
     const cargo = Bun.env.CARGO_BIN ?? "cargo";
+    const env = rustEnv({ ...Bun.env, PATH: Bun.env.PATH ?? "" });
     const fetch = await runProcess(cargo, ["fetch"], {
       cwd: candidateDir,
       timeoutMs: 180_000,
@@ -211,6 +298,7 @@ async function startServer(candidateDir: string, port: number, language: string)
     env: {
       ...Bun.env,
       PATH: Bun.env.PATH ?? "",
+      ...(language === "rust" ? { RUSTUP_TOOLCHAIN: Bun.env.RUSTUP_TOOLCHAIN ?? "stable" } : {}),
       PORT: String(port),
     },
     stdin: "ignore",
@@ -324,6 +412,7 @@ if (!languageIds.includes(language)) {
 }
 
 const evaluationDir = await createEvaluationDir(candidateDir, outPath);
+const normalizations = await prepareCandidate(evaluationDir, language);
 const install = await installCandidate(evaluationDir, language);
 
 let phase = "install";
@@ -379,6 +468,7 @@ const result = {
   phase,
   port,
   install,
+  normalizations,
   healthReady,
   behavior,
   structure,
@@ -400,6 +490,7 @@ console.log(
       condition,
       taskId,
       phase,
+      normalizations,
       assertions:
         behavior.assertionsTotal > 0
           ? `${behavior.assertionsPassed}/${behavior.assertionsTotal}`
