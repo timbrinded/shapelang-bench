@@ -88,12 +88,13 @@ benchmark results.
 
 The evaluator also applies narrow runtime normalizations before scoring:
 Python candidates install through `uv sync --python 3.12` from `pyproject.toml`
-when `PYTHON_BIN` is unset, Go candidates run `go mod tidy` before
-download/build so imports drive module resolution, Rust candidates run under the
-stable Rust toolchain when `RUSTUP_TOOLCHAIN` is unset, and JavaScript candidates
-may receive a start-file shim only when `package.json` points at a missing `.js`
-entrypoint and a clear Express app module exists. These normalizations are
-recorded in `evaluation.json`.
+when `PYTHON_BIN` is unset; there is no pip or `requirements.txt` fallback. Go
+candidates run `go mod tidy` before download/build so imports drive module
+resolution, Rust candidates run under the stable Rust toolchain when
+`RUSTUP_TOOLCHAIN` is unset, and JavaScript candidates may receive a start-file
+shim only when `package.json` points at a missing `.js` entrypoint and a clear
+Express app module exists. These normalizations are recorded in
+`evaluation.json`.
 
 See `docs/methodology.md` and `EXPERIMENTS.md` for the current interpretation of
 the local experiments.

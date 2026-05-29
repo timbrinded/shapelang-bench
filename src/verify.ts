@@ -320,13 +320,11 @@ async function verifyDatabase(root: string, level: string, language: string): Pr
   const source = await readAllSource(root, language);
   const goMod = await maybeRead(root, "go.mod");
   const pyproject = await maybeRead(root, "pyproject.toml");
-  const requirements = await maybeRead(root, "requirements.txt");
-  const pythonManifest = `${pyproject}\n${requirements}`;
   const cargoToml = await maybeRead(root, "Cargo.toml");
   let found = false;
 
   if (language === "python") {
-    found = /\bsqlite3\b|sqlite:\/\//i.test(source) || /sqlite/i.test(pythonManifest);
+    found = /\bsqlite3\b|sqlite:\/\//i.test(source) || /sqlite/i.test(pyproject);
   } else if (language === "go") {
     const goText = `${source}\n${goMod}`;
     found =

@@ -187,39 +187,17 @@ async function installCandidate(candidateDir: string, language: string) {
   if (language === "python") {
     const uv = uvBin();
     const python = pythonRequest();
-    const hasPyproject = await exists(joinPath(candidateDir, "pyproject.toml"));
-    const hasRequirements = await exists(joinPath(candidateDir, "requirements.txt"));
 
-    if (hasPyproject) {
-      const sync = await runProcess(uv, ["sync", "--python", python], {
-        cwd: candidateDir,
-        timeoutMs: 240_000,
-        env,
-      });
-      return combineResults([{ label: `${uv} sync --python ${python}`, result: sync }]);
-    }
-
-    if (!hasRequirements) {
+    if (!(await exists(joinPath(candidateDir, "pyproject.toml")))) {
       return { code: 1, stdout: "", stderr: "missing pyproject.toml", timedOut: false };
     }
-    const venv = await runProcess(uv, ["venv", "--python", python, ".venv"], {
-      cwd: candidateDir,
-      timeoutMs: 120_000,
-      env,
-    });
-    if (venv.code !== 0 || venv.timedOut) {
-      return combineResults([{ label: `${uv} venv --python ${python} .venv`, result: venv }]);
-    }
-    const pipPython = joinPath(candidateDir, ".venv", "bin", "python");
-    const pip = await runProcess(uv, ["pip", "install", "--python", pipPython, "-r", "requirements.txt"], {
+
+    const sync = await runProcess(uv, ["sync", "--python", python], {
       cwd: candidateDir,
       timeoutMs: 240_000,
       env,
     });
-    return combineResults([
-      { label: `${uv} venv --python ${python} .venv`, result: venv },
-      { label: `${uv} pip install --python ${pipPython} -r requirements.txt`, result: pip },
-    ]);
+    return combineResults([{ label: `${uv} sync --python ${python}`, result: sync }]);
   }
 
   if (language === "go") {
