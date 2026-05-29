@@ -237,6 +237,7 @@ const args = parseArgs();
 const candidateDir = args.candidate ? resolvePath(args.candidate) : "";
 const level = args.level ?? "L0";
 const taskId = args.task ?? "commerce-ledger";
+const model = args.model ?? "unknown";
 const language = args.language ?? defaultLanguage;
 const port = Number(args.port ?? defaultPort);
 const outPath = args.out ? resolvePath(args.out) : null;
@@ -291,6 +292,7 @@ const structure = await verifyCandidate(candidateDir, level, language);
 const result = {
   candidateDir,
   evaluationDir,
+  model,
   language,
   level,
   taskId,
@@ -312,6 +314,7 @@ console.log(
   JSON.stringify(
     {
       level,
+      model,
       language,
       taskId,
       assertions: `${behavior.assertionsPassed}/${behavior.assertionsTotal}`,

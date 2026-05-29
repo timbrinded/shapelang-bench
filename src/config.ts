@@ -9,6 +9,7 @@ export const runsDir = joinPath(harnessDir, "runs");
 export const tasksDir = joinPath(harnessDir, "tasks");
 export const defaultPort = 3137;
 export const bunBin = Bun.env.BUN_BIN ?? "bun";
+export const defaultModel = "gpt-5.4-mini";
 
 export const levels = ["L0", "L1", "L2", "L3"];
 export const conditions = ["baseline", "shape"];

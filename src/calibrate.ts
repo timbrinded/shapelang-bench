@@ -1,5 +1,5 @@
 import { runsDir, taskIds } from "./config.ts";
-import { basename, listFiles, modifiedTime, readJson, relativePath } from "./bun-utils.ts";
+import { basename, listFiles, modifiedTime, parseArgs, readJson, relativePath } from "./bun-utils.ts";
 import { defaultLanguage, languageIds } from "./languages.ts";
 
 async function walkEvaluations(root: string): Promise<string[]> {
@@ -10,11 +10,13 @@ function conditionForFile(file: string): "shape" | "baseline" {
   return relativePath(runsDir, file).includes("-shape-") ? "shape" : "baseline";
 }
 
-async function latestByTaskConditionLevel(files: string[]) {
+async function latestByTaskConditionLevel(files: string[], selectedModel: string | null) {
   const latest = new Map<string, { file: string; result: any; mtimeMs: number }>();
 
   for (const file of files) {
     const result = await readJson<any>(file);
+    if (selectedModel && result.model !== selectedModel) continue;
+
     const language = result.language ?? defaultLanguage;
     const taskId = result.taskId ?? "commerce-ledger";
     const key = `${language}:${taskId}:${conditionForFile(file)}:${result.level}`;
@@ -28,7 +30,9 @@ async function latestByTaskConditionLevel(files: string[]) {
   return latest;
 }
 
-const latest = await latestByTaskConditionLevel(await walkEvaluations(runsDir));
+const args = parseArgs();
+const selectedModel = args.model ?? null;
+const latest = await latestByTaskConditionLevel(await walkEvaluations(runsDir), selectedModel);
 
 const rows = languageIds.flatMap((language) => taskIds.map((taskId) => {
   const l0 = latest.get(`${language}:${taskId}:baseline:L0`)?.result ?? null;
@@ -66,6 +70,7 @@ const rows = languageIds.flatMap((language) => taskIds.map((taskId) => {
   }
 
   return {
+    model: selectedModel ?? l0?.model ?? l3?.model ?? shapeL3?.model ?? "unknown",
     language,
     taskId,
     baselineL0: l0Rate,
@@ -92,6 +97,7 @@ console.log(
       acceptedTasks: accepted.map((row) => row.taskId),
       acceptedByLanguage: accepted.map((row) => `${row.language}:${row.taskId}`),
       acceptedCount: accepted.length,
+      model: selectedModel ?? "latest",
       targetCount: taskIds.length * languageIds.length,
       readyForShapeComparison: accepted.length === taskIds.length * languageIds.length,
     },

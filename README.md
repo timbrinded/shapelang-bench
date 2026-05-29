@@ -60,11 +60,15 @@ bun src/run-codex.ts --task coupon-redemptions --condition shape --levels L3 --t
 bun src/run-codex.ts --language rust --task work-queue-leases --condition baseline --levels L0,L3 --trials 1 --model gpt-5.4-mini --copy-auth true
 ```
 
+Run directories include a model slug and `evaluation.json` records the model so
+different model sweeps can be collated independently.
+
 ## Summarize And Calibrate
 
 ```bash
 bun src/summarize.ts
 bun src/calibrate.ts
+bun src/calibrate.ts --model gpt-5.3-codex-spark
 ```
 
 Calibration accepts a task only when L0 is clean or near-clean, L3 decays, and

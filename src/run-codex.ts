@@ -1,6 +1,7 @@
 import {
   bunBin,
   conditions,
+  defaultModel,
   defaultPort,
   levels as allLevels,
   promptsDir,
@@ -22,6 +23,13 @@ function timestamp(): string {
   return new Date().toISOString().replace(/[:.]/g, "-");
 }
 
+function slugifyModel(value: string): string {
+  return value
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, "-")
+    .replace(/^-+|-+$/g, "");
+}
+
 async function copyAuth(codexHome: string): Promise<boolean> {
   const home = Bun.env.HOME;
   if (!home) return false;
@@ -38,7 +46,8 @@ const selectedLevels = (args.levels ? args.levels.split(",") : allLevels).map((l
   level.trim().toUpperCase(),
 );
 const trials = Number(args.trials ?? 1);
-const model = args.model ?? "gpt-5.4-mini";
+const model = args.model ?? defaultModel;
+const modelSlug = slugifyModel(model);
 const timeoutMs = Number(args.timeoutMs ?? 600_000);
 const evaluationTimeoutMs = Number(args.evaluationTimeoutMs ?? 180_000);
 const condition = args.condition ?? "baseline";
@@ -73,7 +82,7 @@ for (const level of selectedLevels) {
   for (let trial = 1; trial <= trials; trial += 1) {
     const runDir = joinPath(
       runsDir,
-      `${timestamp()}-${language}-${taskId}-${condition}-${level.toLowerCase()}-trial-${trial}`,
+      `${timestamp()}-${modelSlug}-${language}-${taskId}-${condition}-${level.toLowerCase()}-trial-${trial}`,
     );
     const workDir = joinPath(runDir, "work");
     const runHome = joinPath(runDir, "home");
@@ -87,6 +96,16 @@ for (const level of selectedLevels) {
     }
 
     await writeText(joinPath(runDir, "prompt.md"), prompt);
+    await writeJson(joinPath(runDir, "run.json"), {
+      model,
+      modelSlug,
+      language,
+      taskId,
+      condition,
+      level,
+      trial,
+      createdAt: new Date().toISOString(),
+    });
 
     const env = {
       ...Bun.env,
@@ -131,6 +150,8 @@ for (const level of selectedLevels) {
       bunBin,
       [
         joinPath(import.meta.dir, "evaluate.ts"),
+        "--model",
+        model,
         "--language",
         language,
         "--task",
