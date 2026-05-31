@@ -35,12 +35,6 @@ const FAILURE_CLASSES = {
 
 type FailureClass = (typeof FAILURE_CLASSES)[keyof typeof FAILURE_CLASSES];
 
-const RIG_CLASSES = new Set<FailureClass>([
-  FAILURE_CLASSES.RIG_INSTALL,
-  FAILURE_CLASSES.RIG_PORT_CONFLICT,
-  FAILURE_CLASSES.RIG_HARNESS_EXCEPTION,
-]);
-
 const ignoredPackageArtifacts = new Set([
   ".env",
   ".npmrc",

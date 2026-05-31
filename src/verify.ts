@@ -1,6 +1,5 @@
 import { shpBin } from "./config.ts";
 import {
-  basename,
   dirname,
   exists,
   joinPath,

@@ -131,10 +131,6 @@ export async function listFiles(root: string): Promise<string[]> {
   return files.sort();
 }
 
-export async function modifiedTime(path: string): Promise<number> {
-  return (await Bun.file(path).stat()).mtimeMs;
-}
-
 // Bind an ephemeral OS-assigned port, read it, then release. Per-eval ports
 // avoid the EADDRINUSE collisions that a single fixed port causes when trials
 // run concurrently or a prior server lingers. There is a small TOCTOU window
@@ -146,15 +142,6 @@ export async function freePort(): Promise<number> {
   return port;
 }
 
-export async function which(command: string): Promise<string | null> {
-  try {
-    const result = await $`bash -lc ${`command -v ${command}`}`.quiet();
-    const out = result.stdout.toString().trim();
-    return out.length > 0 ? out : null;
-  } catch {
-    return null;
-  }
-}
 
 export async function runProcess(
   command: string,

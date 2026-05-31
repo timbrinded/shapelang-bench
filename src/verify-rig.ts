@@ -53,24 +53,20 @@ for (const taskId of PRIMARY) {
     failures += 1;
     continue;
   }
-  for (const level of ["L0", "L3"]) {
-    const r = await evaluate(ref, taskId, level);
-    const ok =
-      r.functionalPassRate === 1 &&
-      r.failureClass === "none" &&
-      r.structure?.passed === true &&
-      r.structure?.shape?.conformant === true;
-    if (!ok) failures += 1;
-    rows.push({
-      check: `golden:${taskId}:${level}`,
-      status: ok ? "PASS" : "FAIL",
-      fpr: r.functionalPassRate,
-      class: r.failureClass,
-      structure: r.structure?.passed,
-      shapeConformant: r.structure?.shape?.conformant,
-      detail: ok ? "" : (r.behavior?.failures?.[0]?.name ?? r._stderr ?? "").slice(0, 80),
-    });
-  }
+  // The reference is a positive control for the BLIND ORACLE only: a known-correct
+  // spec implementation must score 1.0. Architecture/Shape are not the reference's
+  // job (gen 0 is unconstrained), so we evaluate at L0 and assert functional
+  // conformance, not structure or shp.
+  const r = await evaluate(ref, taskId, "L0");
+  const ok = r.functionalPassRate === 1 && r.failureClass === "none";
+  if (!ok) failures += 1;
+  rows.push({
+    check: `golden:${taskId}`,
+    status: ok ? "PASS" : "FAIL",
+    fpr: r.functionalPassRate,
+    class: r.failureClass,
+    detail: ok ? "" : (r.behavior?.failures?.[0]?.name ?? r._stderr ?? "").slice(0, 80),
+  });
 }
 
 // --- Negative control: mutate the coupon reference to drop the per-user-limit

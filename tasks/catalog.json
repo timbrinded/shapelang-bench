@@ -1,29 +1,17 @@
 {
-  "suite": "constraint-and-generational-decay-minimal-backends",
-  "objective": "Measure whether an explicit, shp-checked Shape contract reduces (H1) constraint decay across L0->L3 and (H2) generational decay across successive regenerations, against baseline and a prose-rules control.",
-  "levels": {
-    "L0": "Express only, unconstrained internals, in-memory storage allowed.",
-    "L1": "L0 plus layered architecture.",
-    "L2": "L1 plus SQLite persistence.",
-    "L3": "L2 plus Sequelize ORM."
-  },
+  "suite": "spec-conformance-decay-under-feature-bloat",
+  "objective": "Measure whether successive-generation code generation degrades conformance to the original spec as feature bloat accumulates, and whether using ShapeLang slows it. gen 0 builds the spec; each later generation adds a new feature; every generation is scored against the original blind tests.",
   "conditions": {
-    "baseline": "Functional API plus structural constraints only.",
-    "prose": "Baseline plus architectural boundary rules in plain English (confound control).",
-    "shape": "Prose plus an shp-checked Shape DSL contract and, in the generational loop, shp feedback each generation."
+    "control": "Vanilla coding agent given only the spec / feature ticket.",
+    "shapelang": "Same agent told to use the ShapeLang skill (reads SKILL.md, maintains shape/*.shape, runs shp). Codex runs with an isolated CODEX_HOME so the control cannot discover the skill."
   },
-  "evidence_status": "The single-trial per-task numbers recorded in earlier revisions are SUPERSEDED: they predate rig validation, used an invalid (never shp-checked) Shape contract, had no prose control, did not separate rig from functional failures, and were n=1. Trustworthy results come from the rig-gated n>=5 run in runs/main/analysis.json, interpreted per docs/preregistration.md.",
-  "validation": "bun run verify-rig must pass (golden references clean, mutant caught) before any agent-run result is believed. Each primary task has tasks/<id>/reference/ as a positive control.",
-  "primary_tasks": [
-    { "id": "coupon-redemptions", "domain": "Coupon budget and per-user limit accounting", "assertions": 31, "hasReference": true },
-    { "id": "stipend-awards", "domain": "Stipend award and rescission accounting", "assertions": 31, "hasReference": true },
-    { "id": "grant-budgets", "domain": "Grant budget and claim accounting", "assertions": 31, "hasReference": true },
-    { "id": "rebate-claims", "domain": "Rebate claim and reversal accounting", "assertions": 31, "hasReference": true },
-    { "id": "commerce-ledger", "domain": "Inventory-backed ordering", "assertions": 64, "hasReference": true }
-  ],
-  "archive": [
-    "clinic-scheduling", "library-circulation", "sprint-board", "wallet-transfers",
-    "warehouse-lots", "refund-ledger", "entitlement-gates", "gift-card-redemptions",
-    "voucher-issues", "promo-orders"
+  "validation": "bun run verify-rig must pass (golden references score 1.0 on the blind oracle; mutant caught) before any agent-run result is believed. Each task has tasks/<id>/reference/ as a positive control and tasks/<id>/features.json as the ordered feature-bloat tickets.",
+  "metric": "Original-spec conformance = fraction of the original blind HTTP assertions passed, per generation; decay = conformance(gen 0) - conformance(final gen). See docs/preregistration.md.",
+  "tasks": [
+    { "id": "coupon-redemptions", "domain": "Coupon budget and per-user limit accounting", "assertions": 31 },
+    { "id": "stipend-awards", "domain": "Stipend award and rescission accounting", "assertions": 31 },
+    { "id": "grant-budgets", "domain": "Grant budget and claim accounting", "assertions": 31 },
+    { "id": "rebate-claims", "domain": "Rebate claim and reversal accounting", "assertions": 31 },
+    { "id": "commerce-ledger", "domain": "Inventory-backed ordering", "assertions": 64 }
   ]
 }
