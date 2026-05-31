@@ -1,62 +1,60 @@
 # Methodology
 
-This benchmark is designed to measure constraint decay, not general code
-quality.
+This benchmark measures whether **successive-generation code generation degrades
+conformance to the original spec under feature bloat**, and whether **ShapeLang**
+slows that decay. It is not a general code-quality benchmark.
 
 ## Question
 
-Does an explicit Shape contract reduce L3 constraint decay in agent-generated
-backend systems?
+Does original-spec conformance rot as an LLM agent piles on features over
+successive generations, and does using ShapeLang (a maintained, `shp`-checked
+architecture model) slow the rot?
 
-Shape is treated as a deterministic architecture conformance language. It is not
-treated as a proof of application correctness.
+## Apparatus
+
+- Fixed original spec per task (API + business rules) with a **blind** HTTP test
+  suite the agent never sees.
+- **gen 0** builds the original spec. **gen k>0** adds the k-th new feature
+  (additive endpoints/fields) on top of gen k−1's code. The agent is not re-shown
+  the original spec and is not told to preserve behavior.
+- Every generation is evaluated against the original blind tests →
+  **original-spec conformance** vs generation.
 
 ## Conditions
 
-- `baseline`: the agent receives the task and structural constraints.
-- `shape`: the agent receives the same task and constraints plus an explicit
-  Shape architecture contract.
+- `control`: vanilla Codex (spec / feature ticket only).
+- `shapelang`: Codex told to use the ShapeLang skill (reads `SKILL.md`, authors
+  and maintains `shape/*.shape`, runs `shp` each generation).
 
-Levels:
+Codex runs in an isolated `CODEX_HOME` (no skills dir), so the control cannot see
+ShapeLang; the shapelang arm is pointed at the skill by absolute path. This is
+the only difference between arms.
 
-- `L0`: fixed API, no meaningful structure constraints.
-- `L1`: layered architecture.
-- `L2`: layered architecture plus SQLite persistence.
-- `L3`: layered architecture plus SQLite plus Sequelize ORM.
+## Metrics and failure classification
 
-## Acceptance Rule
+- Original-spec conformance (blind oracle pass rate), over non-rig runs.
+- `shp` conformance for the shapelang arm (did the agent keep a valid model?).
+- `failureClass`: rig classes (`rig_*`) are excluded and retried/resumed;
+  functional classes (`functional_fail`, `boot_crash`, `health_timeout`,
+  `oracle_exception`, `none`) are real code properties. Server logs/exit codes
+  are retained for auditability. A start-script path mismatch is auto-corrected
+  (it is packaging, not behavior) so it cannot masquerade as decay.
 
-A task is useful primary evidence only when:
+## Validity guards
 
-- baseline L0 is clean or near-clean;
-- baseline L3 has lower behavior pass rate than L0, or fails structure while L0
-  passed;
-- the failure is not caused by install, startup, local package-manager artifacts,
-  or prompt ambiguity;
-- Shape L3 has been run against the same task.
+1. `bun run verify-rig` passes (golden references clean; mutant caught).
+2. Rig-failure rate < 5% and balanced across conditions.
+3. n ≥ 5 trials per (task, condition); thinner later generations are flagged
+   `underpowered`.
 
-## Current Task Classification
+## Decision rule
 
-| Task | Classification | Reason |
-| --- | --- | --- |
-| `coupon-redemptions` | Primary signal | Strong behavior decay and Shape recovery. |
-| `stipend-awards` | Primary signal | Strong behavior decay and Shape recovery. |
-| `grant-budgets` | Primary signal | Structure decay recovered by Shape. |
-| `commerce-ledger` | Negative control | Decay exists, Shape currently does not help. |
-| `rebate-claims` | Hygiene check | Original Shape failure was a lockfile/package artifact; cleaned source passes. |
-| `refund-ledger` | Control | Baseline L3 already passes. |
-| `promo-orders` | Control | Baseline L3 already passes. |
-| `voucher-issues` | Control | Baseline L3 already passes. |
-| `warehouse-lots` | Control | Baseline L3 already passes. |
-| `wallet-transfers` | Control candidate | Behavior is too easy in current form. |
-| `sprint-board` | Control candidate | Behavior is too easy in current form. |
-| `clinic-scheduling` | Quarantine | L0 is not clean enough. |
-| `library-circulation` | Quarantine | L0 results have been unstable. |
-| `entitlement-gates` | Quarantine | L0 fails too much. |
-| `gift-card-redemptions` | Quarantine | L0 has startup and behavior instability. |
+See `docs/preregistration.md`. In brief: a task is evidence only if `control`
+actually decays; ShapeLang "slows decay" requires shapelang final-generation
+conformance significantly above control **and** smaller decay. Single trials are
+anecdotes, not evidence.
 
 ## Reporting
 
-Report behavior, structure, health, and failure class separately. A `0/1`
-health timeout is not equivalent to a business-rule failure, and should not be
-counted as Shape making the source logic worse without a cleaned rerun.
+Conformance, decay, `shp` conformance, and failure class are reported
+separately. A rig failure is never counted as decay.

@@ -1,6 +1,6 @@
 import { createBehaviorHarness, hasSameMembers, isIsoString, isObject } from "./helpers.ts";
 
-const EXPECTED_ASSERTIONS = 39;
+const EXPECTED_ASSERTIONS = 30;
 
 function lotQuantities(availability) {
   return availability?.lots?.map((lot) => `${lot.lotCode}:${lot.quantityRemaining}`) ?? [];

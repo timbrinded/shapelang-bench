@@ -1,71 +1,69 @@
-# Constraint Decay Harness Experiments
+# Experiments
 
-## Research Baseline
+## The experiment
 
-Source checked: [arXiv 2605.06445](https://arxiv.org/abs/2605.06445),
-`Constraint Decay: The Fragility of LLM Agents in Backend Code Generation`.
+**Does successive-generation LLM code generation degrade conformance to the
+original spec under feature bloat, and does ShapeLang slow it?** See
+`docs/preregistration.md`. Conditions: `control` (vanilla Codex) vs `shapelang`
+(Codex using the ShapeLang skill). gen 0 builds the spec; each later generation
+adds a new feature on top of the prior code; every generation is re-scored
+against the original blind tests.
 
-The paper's apparatus is not just "make the app harder." The important shape is:
+## Rig hardening (valid regardless of apparatus)
 
-- keep a fixed API contract;
-- add structural constraints incrementally;
-- evaluate with both black-box behavioral tests and static conformance checks;
-- treat data-layer defects, incorrect query composition, and ORM runtime errors as
-  primary failure modes.
+The harness was rebuilt so results reflect code defects, not test-rig or
+local-framework noise. Defects found and fixed:
 
-The local PDF metadata also points to
-`https://anonymous.4open.science/r/constraint-decay`, but that artifact returned
-HTTP 403 from this environment and `git ls-remote` did not resolve it.
+1. `exists()` returned false for directories (Bun.file().exists() is file-only),
+   so the evaluator could not accept a candidate directory at all under current
+   Bun. Fixed with a stat-based check.
+2. A single fixed port (3137) invited `EADDRINUSE`. Fixed: an ephemeral free port
+   per evaluation with conflict detection + retry.
+3. Rig faults were indistinguishable from code defects. Fixed: a `failureClass`
+   taxonomy; rig classes (install/port/runner-timeout/runner-exit/capacity/harness)
+   are excluded from the metric and auto-retried/resumed, never counted as decay.
+4. A start-script path slip (`bun server.js` while the entry is `src/server.js`)
+   was being miscounted as a boot defect and disproportionately hit layered
+   candidates. Fixed: the evaluator falls back to the real entry on a
+   module-not-found fast-fail; genuine boot throws still fail.
+5. Stale `EXPECTED_ASSERTIONS` constants were synced to real oracle counts.
+6. No golden references existed. Fixed: a known-correct reference per task plus a
+   negative-control mutant; `bun run verify-rig` gates the rig.
 
-## Current Calibration Rule
+### Rig self-test
 
-A task counts as useful decay evidence when:
+`bun run verify-rig` passes: all five golden references score 1.0 on the blind
+oracle at L0 and L3, and a no-per-user-limit mutant is caught and classed
+`functional_fail`.
 
-- baseline L0 is clean or near-clean;
-- baseline L3 either has a lower behavioral assertion pass rate than L0 or fails
-  a static structure check that L0 passed;
-- the failure is not an L0 control failure, install failure, or prompt ambiguity;
-- Shape L3 has been run so the task is classified as better, worse, or same.
+## Status of results
 
-Run:
+**The first run (`runs/main`) used a flawed apparatus and is NOT valid evidence
+about ShapeLang. Do not cite it.** Its `shapelang`/`shape` arm was an inlined,
+frozen contract that the harness pasted and validated for the agent — not the
+agent *using* the ShapeLang skill — and its generational loop instructed the
+agent to "refactor and preserve behavior" instead of adding features, so it
+measured the wrong thing (and unsurprisingly found little decay). It also carried
+an `L0–L3` constraint-level axis and a `prose` arm that are not part of this
+experiment. The apparatus has since been corrected:
+
+- conditions are now `control` vs `shapelang`, where `shapelang` points the agent
+  at the real skill (`/home/timbo/.claude/skills/shape-lang`) and the agent runs
+  `shp` itself; the control runs with skills isolated;
+- the decay driver is additive **feature bloat** (`tasks/<id>/features.json`),
+  scored against the original blind oracle each generation;
+- the legacy level/prose machinery and `runs/main` are superseded.
+
+**The corrected experiment has not yet been run.** `gpt-5.3-codex-spark` is
+usage-limited (weekly cap; next reset reported ~Jun 5), so the run awaits either
+that reset or a `gpt-5.5` tier. To run when a model is available:
 
 ```bash
-bun src/calibrate.ts
+bun run verify-rig
+bun run bench -- --experiment decay --conditions control,shapelang --trials 5 \
+  --model gpt-5.3-codex-spark --copy-auth true     # or: --model gpt-5.5 -c model_reasoning_effort=high
+bun run analyze -- --experiment decay
 ```
 
-## Local Results
-
-Latest calibration:
-
-| Task | Baseline L0 | Baseline L3 | Shape L3 | Finding |
-| --- | ---: | ---: | ---: | --- |
-| `commerce-ledger` | 64/64 | 58/64 | 58/64 | Behavior decay; Shape same. |
-| `coupon-redemptions` | 31/31 | 13/31 | 31/31 | Behavior decay; Shape better. |
-| `grant-budgets` | 31/31 | 31/31, structure fail | 31/31, structure pass | Structure decay; Shape better. |
-| `rebate-claims` | 31/31 | 30/31 | 0/1 health | Original Shape run failed startup due to package artifacts; cleaned source reran at 31/31. |
-| `stipend-awards` | 31/31 | 24/31 | 31/31 | Behavior decay; Shape better. |
-
-Important negative result: adding more domain concepts did not automatically
-make a better constraint-decay test. The rejected archive includes noisy controls
-(`library-circulation`, `entitlement-gates`, `gift-card-redemptions`) and
-too-easy tasks (`warehouse-lots`, `refund-ledger`, `voucher-issues`,
-`promo-orders`, plus earlier `sprint-board` and `wallet-transfers`).
-
-## Rig Improvements Made
-
-- Added active task directories with task-local OpenAPI specs and behavior details.
-- Added behavior evaluators for the active suite and rejected candidate archive.
-- Added task-aware prompt generation:
-  `prompts/<task>/<condition>/<level>.md`.
-- Added task-aware Codex runner support through `--task`.
-- Added task-aware evaluation dispatch.
-- Added `calibrate.ts` to classify which tasks actually qualify as decay
-  evidence.
-- Replaced skeletal OpenAPI specs for new tasks with response schemas, request
-  schemas, path parameters, auth schemes, and scalar validation.
-
-## Follow-Up
-
-The suite now satisfies the requested one-trial calibration target for a seed
-suite. The next research step should be repeated trials (`n >= 5`) for primary
-tasks and controls, because Shape effects are stochastic in single-agent runs.
+Conclusions follow the pre-registered rules. Results will be written to
+`runs/decay/analysis.json` and summarized here once collected.

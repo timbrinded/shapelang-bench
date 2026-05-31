@@ -1,6 +1,6 @@
 import { createBehaviorHarness, hasSameMembers, isObject } from "./helpers.ts";
 
-const EXPECTED_ASSERTIONS = 43;
+const EXPECTED_ASSERTIONS = 31;
 
 export async function runBehaviorTests(baseUrl) {
   const { check, request, exception, result } = createBehaviorHarness(

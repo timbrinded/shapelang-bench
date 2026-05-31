@@ -16,8 +16,10 @@ specification above.
   overrides.
 - Do not create or edit `node_modules`. Dependencies must be installed by
   `bun install` from `package.json`.
-- The `start` script must run the server with Bun, for example
-  `bun server.js` or `bun src/server.js`. Do not use `node` in the start script.
+- The `start` script must run your actual server entry file with Bun. The path
+  in the script must match where you place the entry file (e.g. if your entry is
+  `src/server.js`, the script must be `bun src/server.js`, not `bun server.js`).
+  Do not use `node` in the start script.
 - The server must listen on `process.env.PORT`, defaulting to `3137` when the
   environment variable is unset.
 - The server entrypoint must call `app.listen(...)` at top level when

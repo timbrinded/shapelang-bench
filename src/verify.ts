@@ -1,3 +1,4 @@
+import { shpBin } from "./config.ts";
 import {
   basename,
   dirname,
@@ -7,6 +8,7 @@ import {
   readJson,
   readText,
   relativePath,
+  runProcess,
 } from "./bun-utils.ts";
 
 const layerAliases = {
@@ -233,17 +235,90 @@ async function verifyOrm(root: string, level: string): Promise<VerificationSecti
   };
 }
 
+type ShapeConformance = {
+  present: boolean;
+  files: string[];
+  fmtOk: boolean | null;
+  checkOk: boolean | null;
+  analyzeRan: boolean;
+  conformant: boolean | null; // null when no Shape file is present (n/a)
+  details: string[];
+};
+
+// Real ShapeLang conformance: validate the agent-authored .shape file with the
+// actual `shp` binary instead of re-deriving structure from directory names.
+// `shp fmt --check` + `shp check` decide conformance; `shp analyze` is advisory
+// and only captured for transparency.
+async function verifyShape(root: string): Promise<ShapeConformance> {
+  const shapeFiles = (await candidateFiles(root)).filter((file) => file.endsWith(".shape"));
+  if (shapeFiles.length === 0) {
+    return {
+      present: false,
+      files: [],
+      fmtOk: null,
+      checkOk: null,
+      analyzeRan: false,
+      conformant: null,
+      details: ["no .shape file present"],
+    };
+  }
+
+  const relFiles = shapeFiles.map((file) => relativePath(root, file));
+  const env = { ...Bun.env, PATH: Bun.env.PATH ?? "" };
+  const run = (sub: string[]) =>
+    runProcess(shpBin, sub, { cwd: root, env, timeoutMs: 30_000 });
+
+  const details: string[] = [];
+
+  const fmt = await run(["fmt", "--check", ...relFiles]);
+  const fmtOk = fmt.code === 0;
+  if (!fmtOk) details.push(`shp fmt --check failed: ${(fmt.stdout + fmt.stderr).trim().slice(0, 200)}`);
+
+  const check = await run(["check", ...relFiles]);
+  const checkOk = check.code === 0;
+  if (!checkOk) details.push(`shp check failed: ${(check.stdout + check.stderr).trim().slice(0, 300)}`);
+
+  // Advisory comparison of declared effects against source hints.
+  const sourceFiles = (await candidateFiles(root))
+    .filter((file) => /\.(js|mjs|cjs)$/.test(file))
+    .map((file) => relativePath(root, file));
+  let analyzeRan = false;
+  if (sourceFiles.length > 0) {
+    const analyze = await run([
+      "analyze",
+      "--shape-files",
+      relFiles.join(","),
+      ...sourceFiles,
+    ]);
+    analyzeRan = true;
+    const analyzeOut = (analyze.stdout + analyze.stderr).trim();
+    if (analyzeOut.length > 0) details.push(`shp analyze: ${analyzeOut.slice(0, 300)}`);
+  }
+
+  return {
+    present: true,
+    files: relFiles,
+    fmtOk,
+    checkOk,
+    analyzeRan,
+    conformant: fmtOk && checkOk,
+    details,
+  };
+}
+
 export async function verifyCandidate(root: string, level: string) {
   const framework = await verifyFramework(root);
   const architecture = await verifyArchitecture(root, level);
   const database = await verifyDatabase(root, level);
   const orm = await verifyOrm(root, level);
+  const shape = await verifyShape(root);
 
   return {
     framework,
     architecture,
     database,
     orm,
+    shape,
     passed: framework.passed && architecture.passed && database.passed && orm.passed,
   };
 }

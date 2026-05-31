@@ -1,69 +1,78 @@
 # Shapelang Bench
 
-Benchmark harness for testing whether explicit Shape contracts reduce constraint
-decay in agent-generated backend services.
+Benchmark for one question: **does successive-generation LLM code generation
+degrade conformance to the original spec as feature bloat accumulates, and does
+using ShapeLang slow that decay?**
 
-The harness keeps each task's HTTP API fixed, varies the structural constraints
-in the prompt, and evaluates generated candidates with both black-box HTTP tests
-and static conformance checks.
+Each task has a fixed original spec and a **blind** HTTP test suite the agent
+never sees. The agent builds the spec (gen 0), then over successive generations
+is handed its own prior code plus a new feature ticket (additive bloat). Every
+generation is re-scored against the **original** tests, so the metric is
+original-spec conformance over time. Two arms: a vanilla agent (`control`) and
+the same agent told to use the ShapeLang skill (`shapelang`).
 
-The harness itself runs on Bun and TypeScript. The current benchmark tasks still
-generate Express/JavaScript candidates; TypeScript task variants are future work.
+The harness runs on Bun + TypeScript; generated candidates are Express/JS on Bun.
 
-## Current Signal Tasks
+## Conditions
 
-| Task | Role | Current one-trial observation |
-| --- | --- | --- |
-| `coupon-redemptions` | Primary behavior signal | Baseline L3 decays from `31/31` to `13/31`; Shape L3 recovers `31/31`. |
-| `stipend-awards` | Primary behavior signal | Baseline L3 decays from `31/31` to `24/31`; Shape L3 recovers `31/31`. |
-| `grant-budgets` | Primary structure signal | Baseline L3 passes behavior but fails structure; Shape L3 passes both. |
-| `commerce-ledger` | Negative control | Baseline L3 decays from `64/64` to `58/64`; Shape L3 currently does not recover. |
-| `rebate-claims` | Harness hygiene check | Source passes after lockfile cleanup; original Shape run exposed package-artifact contamination. |
+- `control` — vanilla Codex, given only the spec / feature ticket.
+- `shapelang` — same agent, told to use the ShapeLang skill at its absolute path;
+  it reads `SKILL.md`, authors/maintains `shape/*.shape`, and runs the real `shp`
+  CLI each generation.
 
-Additional task drafts are kept under `tasks/` and `prompts/`, but should be
-treated as controls or quarantine cases until their L0 baselines are stable.
+Codex runs with an **isolated `CODEX_HOME` (no skills dir)** — the real
+`~/.codex/skills` symlinks to `~/.claude/skills`, so without isolation the control
+could discover ShapeLang. Only the `shapelang` arm's prompt names the skill path.
 
-## Requirements
-
-- Bun on `PATH`, or set `BUN_BIN=/path/to/bun`.
-- Run `bun install` once to install the TypeScript checker used by the harness.
-- Codex CLI on `PATH` for agent runs.
-- Shape CLI is optional for now; the current verifier checks generated Shape
-  artifacts structurally rather than invoking `shp`.
-
-## Generate Prompts
+## Trust the rig first
 
 ```bash
-bun src/generate-prompts.ts
+bun run verify-rig
 ```
 
-## Run Trials
+Must pass before any result is believed. It asserts a hand-written, known-correct
+golden reference per task scores 1.0 on the blind oracle (positive control) and
+that a deliberately broken mutant is caught and classed `functional_fail`
+(negative control). Rig faults (install/port/runner/capacity, and start-script
+path slips) are classified and excluded — never counted as decay.
 
-By default, the runner uses an isolated `HOME` and `CODEX_HOME` for every trial.
-It does not copy your Codex auth into run directories unless you explicitly pass
-`--copy-auth true`.
+## Run the experiment (resumable)
 
 ```bash
-bun src/run-codex.ts --task coupon-redemptions --condition baseline --levels L0,L3 --trials 1 --model gpt-5.4-mini --copy-auth true
-bun src/run-codex.ts --task coupon-redemptions --condition shape --levels L3 --trials 1 --model gpt-5.4-mini --copy-auth true
+# control vs shapelang, 5 tasks, n=5, ~5 generations of feature bloat each
+bun run bench -- --experiment decay --conditions control,shapelang \
+  --trials 5 --concurrency 2 --model gpt-5.3-codex-spark --copy-auth true
+
+# inspect the exact prompts each arm receives, without spending Codex:
+bun run bench -- --tasks coupon-redemptions --conditions control,shapelang --dry-run true
 ```
 
-## Summarize And Calibrate
+Idempotent and trial-major: re-run the same command to resume after a
+rate/capacity pause; a partial run still yields ≥1 trial per chain. Swap
+`--model gpt-5.5 -c model_reasoning_effort=high` for stronger tiers.
+
+A driver that re-invokes `bench` through capacity windows lives at
+`scripts/auto-resume.sh`.
+
+## Analyze
 
 ```bash
-bun src/summarize.ts
-bun src/calibrate.ts
+bun run analyze -- --experiment decay
 ```
 
-Calibration accepts a task only when L0 is clean or near-clean, L3 decays, and
-the failure is not an install/startup artifact or prompt ambiguity.
+Reports original-spec conformance per generation (bootstrap 95% CIs), rig-health
+balance, per-arm decay trajectories, and the pre-registered verdict (does
+shapelang reduce decay vs control). Writes `runs/decay/analysis.json`.
 
-## Evaluation Hygiene
+## Tasks
 
-Generated candidates are copied into a clean evaluation directory before install.
-The evaluator strips `node_modules`, `.env`, package-manager lockfiles, SQLite
-databases, and Git metadata so agent-side package artifacts do not contaminate
-benchmark results.
+Five fixed specs with blind oracles: `coupon-redemptions`, `stipend-awards`,
+`grant-budgets`, `rebate-claims`, `commerce-ledger`. Each has
+`tasks/<id>/openapi.yaml`, `details.md`, a `reference/` golden implementation, and
+`features.json` (the ordered feature-bloat tickets).
 
-See `docs/methodology.md` and `EXPERIMENTS.md` for the current interpretation of
-the local experiments.
+## Documents
+
+- `docs/preregistration.md` — hypothesis, design, metric, decision rules.
+- `docs/methodology.md` — apparatus and validity guards.
+- `EXPERIMENTS.md` — rig-hardening notes and result status.

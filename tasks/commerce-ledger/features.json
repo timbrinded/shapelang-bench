@@ -1,0 +1,18 @@
+[
+  {
+    "title": "read + listing endpoints",
+    "instruction": "Add `GET /api/products` returning all products with their current stock. Add `GET /api/orders` (authenticated with `Authorization: Token <token>`) returning the authenticated user's orders, newest first, with an optional `?status=placed|canceled` query filter."
+  },
+  {
+    "title": "restock",
+    "instruction": "Add `POST /api/products/{sku}/restock` accepting `{ \"quantity\": <positive integer> }` that increases the product's available `stock` by that quantity and returns the updated product. Added stock is reflected in availability checks for new orders."
+  },
+  {
+    "title": "audit log",
+    "instruction": "Add an append-only audit log recording every order placement and every cancellation, exposed via `GET /api/orders/audit` returning `{ \"type\": \"order_placed\"|\"order_canceled\", \"orderId\": string, \"userId\": string, \"at\": ISO-8601 }` in chronological order."
+  },
+  {
+    "title": "reporting + order versioning",
+    "instruction": "Add `GET /api/report` returning `{ \"perProduct\": [{ \"sku\": string, \"unitsSold\": int, \"revenueCents\": int }], \"totalUnitsSold\": int, \"totalRevenueCents\": int }` counting only placed (non-canceled) orders. Add a `version` integer to every order that starts at 1 and increments on each mutation (cancel increments it)."
+  }
+]

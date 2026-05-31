@@ -1,4 +1,5 @@
 import { $ } from "bun";
+import { stat } from "node:fs/promises";
 
 export type CliArgs = Record<string, string>;
 
@@ -70,8 +71,15 @@ export function parseArgs(argv: string[] = Bun.argv.slice(2)): CliArgs {
   return args;
 }
 
+// Bun.file(path).exists() returns false for directories, so use a stat-based
+// check that is correct for both files and directories.
 export async function exists(path: string): Promise<boolean> {
-  return Bun.file(path).exists();
+  try {
+    await stat(path);
+    return true;
+  } catch {
+    return false;
+  }
 }
 
 export async function readText(path: string): Promise<string> {
@@ -125,6 +133,27 @@ export async function listFiles(root: string): Promise<string[]> {
 
 export async function modifiedTime(path: string): Promise<number> {
   return (await Bun.file(path).stat()).mtimeMs;
+}
+
+// Bind an ephemeral OS-assigned port, read it, then release. Per-eval ports
+// avoid the EADDRINUSE collisions that a single fixed port causes when trials
+// run concurrently or a prior server lingers. There is a small TOCTOU window
+// between release and the candidate binding; callers retry on conflict.
+export async function freePort(): Promise<number> {
+  const server = Bun.serve({ port: 0, fetch: () => new Response("ok") });
+  const port = server.port;
+  server.stop(true);
+  return port;
+}
+
+export async function which(command: string): Promise<string | null> {
+  try {
+    const result = await $`bash -lc ${`command -v ${command}`}`.quiet();
+    const out = result.stdout.toString().trim();
+    return out.length > 0 ? out : null;
+  } catch {
+    return null;
+  }
 }
 
 export async function runProcess(

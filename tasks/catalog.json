@@ -1,6 +1,6 @@
 {
-  "suite": "constraint-decay-minimal-backends",
-  "objective": "Expose backend constraint decay with small fixed-API generation tasks, then compare baseline prompts against Shape-assisted prompts.",
+  "suite": "constraint-and-generational-decay-minimal-backends",
+  "objective": "Measure whether an explicit, shp-checked Shape contract reduces (H1) constraint decay across L0->L3 and (H2) generational decay across successive regenerations, against baseline and a prose-rules control.",
   "levels": {
     "L0": "Express only, unconstrained internals, in-memory storage allowed.",
     "L1": "L0 plus layered architecture.",
@@ -9,110 +9,21 @@
   },
   "conditions": {
     "baseline": "Functional API plus structural constraints only.",
-    "shape": "Same task plus an explicit Shape architecture contract and self-check instruction."
+    "prose": "Baseline plus architectural boundary rules in plain English (confound control).",
+    "shape": "Prose plus an shp-checked Shape DSL contract and, in the generational loop, shp feedback each generation."
   },
-  "tasks": [
-    {
-      "id": "commerce-ledger",
-      "status": "accepted",
-      "domain": "Inventory-backed ordering",
-      "decay_mode": "behavior",
-      "shape_effect": "same",
-      "current_evidence": {
-        "baseline_L0": "64/64, structure pass",
-        "baseline_L3": "58/64, structure pass",
-        "shape_L3": "58/64, structure pass"
-      }
-    },
-    {
-      "id": "coupon-redemptions",
-      "status": "accepted",
-      "domain": "Coupon budget and per-user limit accounting",
-      "decay_mode": "behavior",
-      "shape_effect": "better",
-      "current_evidence": {
-        "baseline_L0": "31/31, structure pass",
-        "baseline_L3": "13/31, structure pass",
-        "shape_L3": "31/31, structure pass"
-      }
-    },
-    {
-      "id": "grant-budgets",
-      "status": "accepted",
-      "domain": "Grant budget and claim accounting",
-      "decay_mode": "structure",
-      "shape_effect": "better",
-      "current_evidence": {
-        "baseline_L0": "31/31, structure pass",
-        "baseline_L3": "31/31, structure fail",
-        "shape_L3": "31/31, structure pass"
-      }
-    },
-    {
-      "id": "rebate-claims",
-      "status": "accepted",
-      "domain": "Rebate claim and reversal accounting",
-      "decay_mode": "behavior",
-      "shape_effect": "worse",
-      "current_evidence": {
-        "baseline_L0": "31/31, structure pass",
-        "baseline_L3": "30/31, structure pass",
-        "shape_L3": "0/1 health, structure pass"
-      }
-    },
-    {
-      "id": "stipend-awards",
-      "status": "accepted",
-      "domain": "Stipend award and rescission accounting",
-      "decay_mode": "behavior",
-      "shape_effect": "better",
-      "current_evidence": {
-        "baseline_L0": "31/31, structure pass",
-        "baseline_L3": "24/31, structure pass",
-        "shape_L3": "31/31, structure pass"
-      }
-    }
+  "evidence_status": "The single-trial per-task numbers recorded in earlier revisions are SUPERSEDED: they predate rig validation, used an invalid (never shp-checked) Shape contract, had no prose control, did not separate rig from functional failures, and were n=1. Trustworthy results come from the rig-gated n>=5 run in runs/main/analysis.json, interpreted per docs/preregistration.md.",
+  "validation": "bun run verify-rig must pass (golden references clean, mutant caught) before any agent-run result is believed. Each primary task has tasks/<id>/reference/ as a positive control.",
+  "primary_tasks": [
+    { "id": "coupon-redemptions", "domain": "Coupon budget and per-user limit accounting", "assertions": 31, "hasReference": true },
+    { "id": "stipend-awards", "domain": "Stipend award and rescission accounting", "assertions": 31, "hasReference": true },
+    { "id": "grant-budgets", "domain": "Grant budget and claim accounting", "assertions": 31, "hasReference": true },
+    { "id": "rebate-claims", "domain": "Rebate claim and reversal accounting", "assertions": 31, "hasReference": true },
+    { "id": "commerce-ledger", "domain": "Inventory-backed ordering", "assertions": 64, "hasReference": true }
   ],
-  "rejected_archive": [
-    {
-      "id": "clinic-scheduling",
-      "reason": "L0 was not clean and L3 was not worse."
-    },
-    {
-      "id": "library-circulation",
-      "reason": "L0 was unstable across trials even after schema improvements."
-    },
-    {
-      "id": "sprint-board",
-      "reason": "No behavioral decay: L0 and L3 both passed."
-    },
-    {
-      "id": "wallet-transfers",
-      "reason": "No behavioral decay: L0 and L3 both passed."
-    },
-    {
-      "id": "warehouse-lots",
-      "reason": "No decay: L0 and L3 both passed."
-    },
-    {
-      "id": "refund-ledger",
-      "reason": "No decay: L0 and L3 both passed."
-    },
-    {
-      "id": "entitlement-gates",
-      "reason": "Noisy control: L0 failed before structural pressure."
-    },
-    {
-      "id": "gift-card-redemptions",
-      "reason": "Noisy control: L0 failed startup/route behavior."
-    },
-    {
-      "id": "voucher-issues",
-      "reason": "No decay: L0 and L3 both passed."
-    },
-    {
-      "id": "promo-orders",
-      "reason": "No decay: L0 and L3 both passed."
-    }
+  "archive": [
+    "clinic-scheduling", "library-circulation", "sprint-board", "wallet-transfers",
+    "warehouse-lots", "refund-ledger", "entitlement-gates", "gift-card-redemptions",
+    "voucher-issues", "promo-orders"
   ]
 }

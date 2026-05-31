@@ -4,11 +4,11 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "generate": "bun src/generate-prompts.ts",
-    "calibrate": "bun src/calibrate.ts",
-    "summarize": "bun src/summarize.ts",
+    "verify-rig": "bun src/verify-rig.ts",
+    "bench": "bun src/bench.ts",
+    "analyze": "bun src/analyze.ts",
     "typecheck": "tsc --noEmit",
-    "check": "bun run typecheck && bun run generate && bun run calibrate"
+    "check": "bun run typecheck && bun run verify-rig"
   },
   "devDependencies": {
     "@types/bun": "latest",
