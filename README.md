@@ -1,69 +1,222 @@
-# Shapelang Bench
+# Constraint Decays
 
-Benchmark harness for testing whether explicit Shape contracts reduce constraint
-decay in agent-generated backend services.
+Reproducibility package for **"Constraint Decay: The Fragility of LLM Agents in Backend Code Generation"**.
 
-The harness keeps each task's HTTP API fixed, varies the structural constraints
-in the prompt, and evaluates generated candidates with both black-box HTTP tests
-and static conformance checks.
+This repository evaluates how LLM-based coding agents (Mini-SWE-Agent, OpenHands) handle structural constraints, architectural patterns, database engines, and ORMs, in multi-file REST API generation. By fixing a unified API contract (the RealWorld Conduit API) across 80 generation tasks and 20 feature-implementation tasks spanning eight web frameworks, it isolates the effect of constraint accumulation on agent performance.
 
-The harness itself runs on Bun and TypeScript. The current benchmark tasks still
-generate Express/JavaScript candidates; TypeScript task variants are future work.
+## Results Reproducibility
 
-## Current Signal Tasks
+All the results from the paper are reproducible using the repository scripts.
 
-| Task | Role | Current one-trial observation |
-| --- | --- | --- |
-| `coupon-redemptions` | Primary behavior signal | Baseline L3 decays from `31/31` to `13/31`; Shape L3 recovers `31/31`. |
-| `stipend-awards` | Primary behavior signal | Baseline L3 decays from `31/31` to `24/31`; Shape L3 recovers `31/31`. |
-| `grant-budgets` | Primary structure signal | Baseline L3 passes behavior but fails structure; Shape L3 passes both. |
-| `commerce-ledger` | Negative control | Baseline L3 decays from `64/64` to `58/64`; Shape L3 currently does not recover. |
-| `rebate-claims` | Harness hygiene check | Source passes after lockfile cleanup; original Shape run exposed package-artifact contamination. |
+Additionally, a zip archive containing the experiments results is available on [HuggingFace](https://huggingface.co/datasets/constraint/constraint_decay/tree/main): [https://huggingface.co/datasets/constraint/constraint_decay/tree/main](https://huggingface.co/datasets/constraint/constraint_decay/tree/main)
 
-Additional task drafts are kept under `tasks/` and `prompts/`, but should be
-treated as controls or quarantine cases until their L0 baselines are stable.
+## Setup
 
-## Requirements
-
-- Bun on `PATH`, or set `BUN_BIN=/path/to/bun`.
-- Run `bun install` once to install the TypeScript checker used by the harness.
-- Codex CLI on `PATH` for agent runs.
-- Shape CLI is optional for now; the current verifier checks generated Shape
-  artifacts structurally rather than invoking `shp`.
-
-## Generate Prompts
+Requires Python 3.12+, [uv](https://docs.astral.sh/uv/), and Docker.
 
 ```bash
-bun src/generate-prompts.ts
+uv sync
+cp .env.template .env
+# fill in LLM_API_KEY, LLM_MODEL, paths
+# unzip results for full trajectories of experiments ran in the paper and place them in data/results to reproduce all paper tables
 ```
 
-## Run Trials
+`uv sync` creates a new virtual environment in the current folder automatically.
 
-By default, the runner uses an isolated `HOME` and `CODEX_HOME` for every trial.
-It does not copy your Codex auth into run directories unless you explicitly pass
-`--copy-auth true`.
+## Reproducing Paper Tables
+
+All paper tables can be reproduced directly from the raw `data/results/` directory after downloading it.
+
+### Tables 1, 1-raw, 2a, 2b, 3 (main results)
 
 ```bash
-bun src/run-codex.ts --task coupon-redemptions --condition baseline --levels L0,L3 --trials 1 --model gpt-5.4-mini --copy-auth true
-bun src/run-codex.ts --task coupon-redemptions --condition shape --levels L3 --trials 1 --model gpt-5.4-mini --copy-auth true
+uv run evaluation_tables.py data/results           # terminal output
+uv run evaluation_tables.py data/results --latex    # also emit LaTeX
 ```
 
-## Summarize And Calibrate
+This produces:
+- **Table 1**: A% and pass@1 across constraint levels L0–L3, with ΔA% (L3−L0)
+- **Table 1-raw**: Same as Table 1 but without verifier enforcement (Appendix E)
+- **Table 2a**: Marginal effect of each constraint via matched-pair differences (±SEM)
+- **Table 2b**: Feature-implementation pass@1 per model and agent
+- **Table 3**: Per-framework A% ranking with pass@1 subscripts
+
+## Running New Experiments
+
+### Environment Variables
+
+| Variable | Description |
+|----------|-------------|
+| `LLM_API_KEY` | API key for the LLM provider |
+| `LLM_MODEL` | Model identifier (e.g., `openai/gpt-5-mini`) (*)|
+| `LLM_BASE_URL` | Optional custom endpoint (e.g., for vLLM self-hosted models) |
+| `TASKS_ABSOLUTE_PATH` | Absolute path to `data/tasks/` |
+| `RESULTS_ABSOLUTE_PATH` | Absolute path to `data/results/` |
+
+---
+
+(*) When using an external provider, model name should follow LiteLLM conventions (see https://docs.litellm.ai/docs/providers).
+
+### Run agent on generation tasks
 
 ```bash
-bun src/summarize.ts
-bun src/calibrate.ts
+# Single task
+uv run main.py --agent mini_swe_sdk --task uv/uv-flask-openapi-unconstrained.json
+
+# All tasks for node runtime, 3 runs each
+uv run main.py --agent mini_swe_sdk --task node --runs 3
+
+# Evaluate only (skip agent run, use existing patches in data/results/)
+uv run main.py --agent mini_swe_sdk --task node --evaluate --runs 3
 ```
 
-Calibration accepts a task only when L0 is clean or near-clean, L3 decays, and
-the failure is not an install/startup artifact or prompt ambiguity.
+### Run agent on feature-implementation tasks
 
-## Evaluation Hygiene
+```bash
+# Single task
+uv run main.py --agent mini_swe_sdk --task express/hard-focused-task-001.json
 
-Generated candidates are copied into a clean evaluation directory before install.
-The evaluator strips `node_modules`, `.env`, package-manager lockfiles, SQLite
-databases, and Git metadata so agent-side package artifacts do not contaminate
-benchmark results.
+# All tasks for express, 3 runs each
+uv run main.py --agent mini_swe_sdk --task express --runs 3
 
-See `docs/methodology.md` and `EXPERIMENTS.md` for the current interpretation of
-the local experiments.
+# Evaluate only (skip agent run, use existing patches in data/results/)
+uv run main.py --agent mini_swe_sdk --task express --runs 3 --evaluate
+```
+
+## Repository Structure
+
+### Scripts
+
+| Script | Purpose | Paper Reference |
+|--------|---------|-----------------|
+| `main.py` | End-to-end pipeline: run an agent on tasks and evaluate results | §3, §4 |
+| `run_agent.py` | Execute an LLM agent (Mini-SWE, OpenHands) inside a Docker container | §4 (Agents) |
+| `evaluate.py` | Apply an agent's patch in a clean container, run Newman behavioral tests, collect results | §3.3 (Evaluation Pipeline) |
+| `evaluation.py` | Aggregate per-run Newman CSVs into task-level and global statistics (A%, pass@k), run static verifiers | §4 (Metrics) |
+| `evaluation_feature.py` | Same aggregation for feature-implementation tasks | Table 2b |
+| `evaluation_tables.py` | **Reproduce all paper tables** from raw results (see below) | Tables 1–3, 2a, 2b |
+| `failure_analysis.py` | Classify failed runs into coarse failure categories using an LLM judge | §5.3 (RQ3), Table 4 |
+| `failure_analysis_logic.py` | Sub-classify logic errors into root-cause categories | §5.3, Table 4 (right) |
+| `tokens.py` | Count input/output tokens from agent trajectories | Appendix (Token Consumption) |
+| `generate_task.py` | Generate task JSON files from repository metadata | §3.1 |
+| `generation_tasks.py` | Batch-generate all 80 generation task definitions | §3.1 |
+
+### Core Library (`constraint_decay/`)
+
+| Module | Purpose |
+|--------|---------|
+| `model.py` | Data models: `Task`, `RepoMetadata`, `TaskMetadata` |
+| `dockerized_cmd.py` | Docker Compose command wrappers (build, run, exec, copy, logs) |
+| `verifiers.py` | Static constraint verifiers: clean architecture (4-layer + dependency direction), database type, ORM compliance |
+| `prompts/` | Prompt templates for agents and LLM judges |
+
+### Data Artifacts (`data/`)
+
+| Path | Description | Paper Reference |
+|------|-------------|-----------------|
+| `tasks/uv/` | 40 generation task JSONs for Python frameworks (Flask, FastAPI, Django, aiohttp) | §3.1 |
+| `tasks/node/` | 40 generation task JSONs for Node.js frameworks (Express, Fastify, Hono, Koa) | §3.1 |
+| `tasks/{aiohttp,express,fastapi,flask,honojs}/` | 20 feature-implementation task JSONs (4 per framework) | Appendix D |
+| `results/` | Raw evaluation results: agent patches, Newman CSVs, server logs, trajectories | All tables |
+| `failure_analysis_qwen3-coder-next.csv` | LLM-judge failure classifications for Qwen3-Coder-Next (194 failed runs) | Table 4 (left) |
+| `failure_analysis_minimax-m2.5.csv` | LLM-judge failure classifications for MiniMax-M2.5 (28 failed runs) | Table 4 (left) |
+| `logic_subcategories.csv` | Logic-error root-cause sub-classifications | Table 4 (right) |
+| `judge_validation_set.json` | 50-sample stratified validation set with human + judge labels | Appendix B |
+| `judge_validation_metrics.json` | Per-category precision/recall/F1 and Cohen's κ | Appendix B, Table 5 |
+
+### Results Directory Layout
+
+```
+data/results/{runtime}/{agent}/{model}/{task}/{date}/run_N/
+├── {agent}-{task}.patch       # Agent-generated unified diff
+├── newman-run-report-*.csv    # Per-assertion pass/fail results
+├── conduit.log                # Server stdout/stderr
+├── setup.log                  # Dependency install output
+├── {trajectory}               # Agent trajectory in the given run
+└── newman-run-report-*.html   # Newman HTML report
+```
+
+Generation tasks use `runtime` = `uv` (Python) or `node` (Node.js). Feature-implementation tasks use framework-level directories (`express`, `flask`, `fastapi`, `aiohttp`, `honojs`).
+
+### Runtime Environment (`runtime/`)
+
+| Path | Description |
+|------|-------------|
+| `agents/` | Agent implementations: `mini_swe_sdk.py`, `openhands_sdk.py`, `mock_agent.py`, YAML configs |
+| `{aiohttp,express,fastapi,flask,honojs,...}/` | Per-framework Docker Compose projects (Dockerfile, docker-compose.yml) |
+| `newman/` | Newman test runner container |
+| `openapi.yml` | Full OpenAPI 3.0 specification (19 endpoints, ~500 lines) |
+
+### Table 4 (failure taxonomy)
+
+The failure classifications are pre-computed in `data/failure_analysis_*.csv` and `data/logic_subcategories.csv`. To re-run the LLM judge from scratch:
+
+```bash
+# Coarse failure categories
+uv run failure_analysis.py data/results --agent mini_swe_sdk --model qwen3-coder-next \
+  --output data/failure_analysis_qwen3-coder-next.csv
+
+uv run failure_analysis.py data/results --agent mini_swe_sdk --model minimax-m2.5 \
+  --output data/failure_analysis_minimax-m2.5.csv
+
+# Logic-error subcategories
+uv run failure_analysis_logic.py data/results --agent mini_swe_sdk --model qwen3-coder-next \
+  --output data/logic_subcategories.csv
+```
+
+### Token consumption tables (Appendix F)
+
+```bash
+uv run tokens.py data/results --agent mini_swe_sdk
+uv run tokens.py data/results --agent openhands_sdk
+```
+
+### Detailed per-run statistics
+
+```bash
+# All agents and models
+uv run evaluation.py data/results --summary
+
+# Specific agent/model
+uv run evaluation.py data/results --agent mini_swe_sdk --model gpt-5-mini --summary
+
+# Feature-implementation tasks
+uv run evaluation_feature.py data/results
+```
+
+
+### Task naming convention
+
+Generation task filenames encode constraints:
+
+```
+{framework}-{spec_type}-{constraints}.json
+
+# Examples:
+flask-openapi-unconstrained              # L0: no constraints
+express-openapi-clean_architecture       # L1: architecture only
+aiohttp-openapi-clean_architecture-postgres  # L2: architecture + DB
+hono-openapi-clean_architecture-sqlite-sequelize  # L3: all three
+```
+
+## Task generation
+
+All tasks required to reproduce the results are already available in the `data/tasks` folder.
+
+However, it is possible to generate more tasks following the methodology described in the paper simply by modifing the `generation_tasks.py` script.
+
+It is sufficient to add the new task definitions (e.g. runtime / framework) to the top module constants in order to generate all L0 to L3 variations for a new task.
+
+**Example 1: add the Hapi JS framework**
+
+1. Add the `hapi` string to the `node` array in the `FRAMEWORKS` constant;
+2. run `uv run generation_tasks.py`.
+
+It is also possible to add tasks for new runtimes, but it requires more steps. Here is a simplified overview of the required steps to add a new runtime.
+
+**Example 2: add support for Go and Gin**
+
+1. Create a Docker runtime for Go (refer to [runtim/node](runtime/node/) as a template);
+2. [constraint_decay/prompts](constraint_decay/prompts/): add the prompt templates for Go and the relative ORM (`evaluation`, `mandatory_files` and `requirements`);
+3. [generation_tasks.py](generation_tasks.py): add the go references in the top module constants;
+4. run `uv run generation_tasks.py`.
