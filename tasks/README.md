@@ -1,19 +1,20 @@
 # Tasks
 
-Five fixed-spec backend tasks. Each directory contains:
+Five fixed-spec backend tasks for the constraint-decay experiment. Each directory
+contains:
 
-- `openapi.yaml` — the original API contract shown to the agent at gen 0.
-- `details.md` — the original business rules and response shapes.
-- `features.json` — the ordered, additive feature-bloat tickets fed one per
-  generation (gen 1, gen 2, …).
-- `reference/` — a known-correct implementation used **only** as a positive
-  control for the blind oracle (`bun run verify-rig`); never shown to the agent.
+- `openapi.yaml` — the API contract shown to the agent.
+- `details.md` — the business rules and response shapes.
+- `reference/` — a known-correct, layered+Sequelize implementation used **only**
+  as a positive control for the blind oracle and structural verifiers
+  (`bun run verify-rig`); never shown to the agent.
 
-The blind test oracles live in `src/behaviors/<id>.ts` and are never given to the
-agent. Conformance is always measured against the *original* spec, so feature
-bloat that silently breaks original behavior shows up as decay.
+The blind behavioral oracles live in `src/behaviors/<id>.ts` and are never given
+to the agent. The same spec is generated under each constraint level (L0→L3); the
+oracle measures conformance, and the static architecture/DB/ORM verifiers measure
+structural compliance.
 
-| task | domain | original assertions |
+| task | domain | assertions |
 | --- | --- | --- |
 | `coupon-redemptions` | coupon budget + per-user limit accounting | 31 |
 | `stipend-awards` | stipend award + rescission accounting | 31 |

@@ -43,3 +43,41 @@ export const taskIds = [
   "stipend-awards",
 ];
 
+// The paper's constraint ladder (Dente et al., "Constraint Decay"): a fixed API
+// contract under increasing non-functional/structural density. Each level is a
+// single 0-shot generation. L0 = framework only (baseline); then +Clean
+// Architecture, +SQLite persistence, +Sequelize ORM accumulate. Decay = the drop
+// in original-spec conformance (and structural compliance) from L0 to L3.
+export const levels = ["L0", "L1", "L2", "L3"];
+
+export const constraintBlocks: Record<string, string> = {
+  L0: `## Structural Constraints
+
+- No additional structural constraints. In-memory storage is allowed.`,
+  L1: `## Structural Constraints
+
+- Follow a layered (Clean Architecture) design with separate directories for
+  routes/handlers, services/use-cases, repositories/data-access, and
+  models/entities.
+- Dependencies point one way only: routes -> services -> repositories -> models.
+  Lower layers must not import higher layers.
+- In-memory storage is allowed.`,
+  L2: `## Structural Constraints
+
+- Follow a layered (Clean Architecture) design with separate directories for
+  routes/handlers, services/use-cases, repositories/data-access, and
+  models/entities; lower layers must not import higher layers.
+- Persist all task entities and mutable state in SQLite. Create the schema
+  automatically on server startup. Do not use in-memory-only storage for
+  persisted entities.`,
+  L3: `## Structural Constraints
+
+- Follow a layered (Clean Architecture) design with separate directories for
+  routes/handlers, services/use-cases, repositories/data-access, and
+  models/entities; lower layers must not import higher layers.
+- Persist all task entities and mutable state in SQLite, with the schema created
+  automatically on server startup.
+- Use the Sequelize ORM for all model definitions and data access. Do not use
+  raw SQL as the primary data-access mechanism.`,
+};
+

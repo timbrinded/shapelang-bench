@@ -1,71 +1,70 @@
-# Pre-Registration: Does ShapeLang Slow Spec-Conformance Decay Under Feature Bloat?
+# Pre-Registration: Does ShapeLang Reduce Constraint Decay?
 
-This fixes the hypothesis, design, metric, and decision rules **before** results.
+Fixes the hypothesis, design, metrics, and decision rules **before** results.
+
+## Background
+
+Dente et al., *Constraint Decay: The Fragility of LLM Agents in Backend Code
+Generation* (arXiv 2605.06445), show that agents generate functional backends
+under loose specs but degrade sharply as **structural constraints** (Clean
+Architecture, database, ORM) accumulate over a fixed API contract — capable
+models lose ~30 points of assertion pass-rate from baseline to fully specified,
+with data-layer defects (~45% of failures) the leading cause. We replicate that
+decay and test whether using **ShapeLang** — a machine-checkable architecture
+contract the agent authors and verifies with `shp` — reduces it.
 
 ## Question
 
-Does successive-generation LLM code generation degrade conformance to the
-**original spec** as feature bloat accumulates — and does using **ShapeLang**
-slow that degradation?
+Across a fixed API under an increasing structural-constraint ladder (L0→L3),
+does an agent that uses the ShapeLang skill decay less — in behavioral
+conformance and/or structural compliance — than a vanilla control?
 
-## Design
+## Design (0-shot, per the paper)
 
-- **gen 0** — the agent builds the original spec (a fixed API per task).
-- **gen k>0** — the agent is handed gen k−1's code plus ONE new feature ticket
-  (additive: new endpoints/fields) and implements it. The agent is **not** shown
-  the original spec again and is **not** told to preserve behavior — this is the
-  point: realistic feature bloat, where the original contract recedes.
-- **Every generation is scored against the ORIGINAL spec's blind tests** (the
-  agent never sees these tests). The metric is **original-spec conformance** as a
-  function of generation.
+- Fixed API per task; a blind behavioral oracle the agent never sees.
+- One **single generation** per (task, condition, level). No iteration.
+- Constraint ladder: **L0** framework only (in-memory ok) → **L1** +layered
+  (Clean) architecture → **L2** +SQLite persistence → **L3** +Sequelize ORM.
 
-## Conditions (A vs B only)
+## Conditions (A vs B)
 
-- `control` — vanilla coding agent (Codex), given only the spec / feature ticket.
-- `shapelang` — the same agent, told to use the ShapeLang skill at its absolute
-  path (it reads `SKILL.md`, authors/maintains `shape/*.shape`, and runs the real
-  `shp` CLI each generation). ShapeLang is the *treatment*: a machine-checkable
-  architecture memory the agent maintains to resist drift.
+- `control` — vanilla Codex, given the spec + the level's structural constraints.
+- `shapelang` — the same agent + the same constraints, additionally told to use
+  the ShapeLang skill (read `SKILL.md`, author/maintain `shape/*.shape`, run
+  `shp`). Codex runs with an isolated `CODEX_HOME` (no skills dir), so the
+  control cannot discover ShapeLang. ShapeLang is the only difference.
 
-**Control isolation:** Codex is run with an isolated `CODEX_HOME` that has no
-`skills/` directory (the real one symlinks `~/.codex/skills → ~/.claude/skills`),
-so the control provably cannot discover ShapeLang. Only the `shapelang` arm's
-prompt names the skill path. A `verify-rig`-style empirical check ("list any
-shape skills you can see") must confirm the control sees none before a run is
-trusted.
+## Metrics (dual, per the paper)
 
-## Metric
-
-- **Original-spec conformance** = fraction of the original blind HTTP assertions
-  passed, computed only over non-rig runs.
-- **Decay** = conformance(gen 0) − conformance(final gen).
-- **ShapeLang conformance** (shapelang arm only) = `shp check` + `shp fmt --check`
-  pass on the agent's `.shape` model — a secondary signal on whether the agent
-  actually used the tool.
+- **Assert%** (primary, behavioral) — fraction of the original blind assertions
+  passed, over non-rig runs.
+- **Structural compliance** — the static architecture/DB/ORM verifiers pass
+  (the paper's second axis; the surface ShapeLang most directly targets).
+- **shp conformance** (shapelang only) — `shp check` + `shp fmt --check` pass on
+  the agent's `.shape` (did it actually use the tool).
+- **Decay** = metric(L0) − metric(L3), per condition.
 
 ## Validity guards
 
-1. `bun run verify-rig` passes (golden references clean; mutant caught) so the
-   oracle provably measures code.
-2. Residual rig-class failure rate is low (< 5%) and balanced across conditions;
-   rig faults (install/port/runner/capacity) are excluded and never counted as
-   decay.
-3. n ≥ 5 trials per (task, condition) for primary claims; later generations may
-   be lower-n if runs are truncated — those verdicts are flagged `underpowered`.
+1. `bun run verify-rig` passes: golden references score 1.0 behavioral **and**
+   structural at L0/L3; a behavioral mutant is caught (`functional_fail`); a
+   structural mutant (upward import) is caught (structure fails, behavior intact).
+2. Rig-class failures (install/port/runner/capacity) < 5% and balanced across
+   conditions; excluded from metrics, never counted as decay.
+3. n ≥ 5 trials per (task, condition, level) for primary claims.
 
-## Decision rule (per task; `p` is a two-sided permutation test on final-gen
-conformance)
+## Decision rule (per task; `p` = two-sided permutation on L3 metrics)
 
-- If `control` does not decay (`decay ≤ 0.02`), the task **cannot test** the
-  hypothesis (no degradation to slow) → reported `no-decay`.
-- Otherwise **ShapeLang slows decay** is supported iff
-  `conformance(shapelang, final) > conformance(control, final)` with `p < 0.05`
-  **and** `decay(shapelang) < decay(control)`.
+- If `control` does not decay (`Assert%` L0−L3 ≤ 0.02 and structural compliance
+  already high), the task cannot test the hypothesis → `no-decay`.
+- Otherwise **ShapeLang reduces decay** is supported iff, at L3,
+  `shapelang` beats `control` on Assert% (`p < 0.05`) **and** has smaller
+  Assert% decay, **or** has materially higher structural-compliance rate.
 - A decaying task where shapelang does not beat control is a real negative
-  result (`shapelang-not-supported`), not a rig failure.
+  result (`shapelang-not-supported`), reported as such.
 
 ## Not claimed
 
-`shp check` passing means the architecture contract is well-formed and the
-declared structure holds; it is not a proof of business-rule correctness. The
-blind oracle measures original-spec behavior independently.
+`shp check` passing means the contract is well-formed and the declared structure
+holds; it is not a proof of business-rule correctness. The blind oracle measures
+behavior independently.

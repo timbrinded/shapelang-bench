@@ -2,68 +2,63 @@
 
 ## The experiment
 
-**Does successive-generation LLM code generation degrade conformance to the
-original spec under feature bloat, and does ShapeLang slow it?** See
-`docs/preregistration.md`. Conditions: `control` (vanilla Codex) vs `shapelang`
-(Codex using the ShapeLang skill). gen 0 builds the spec; each later generation
-adds a new feature on top of the prior code; every generation is re-scored
-against the original blind tests.
+Replicate **constraint decay** (Dente et al., arXiv 2605.06445) and test whether
+**ShapeLang** reduces it. Fixed API per task; one 0-shot generation per
+(task, condition, level) under an increasing structural-constraint ladder
+(L0 framework → L1 +architecture → L2 +SQLite → L3 +Sequelize). Conditions:
+`control` (vanilla Codex, skills isolated) vs `shapelang` (same agent using the
+ShapeLang skill). Dual metric: behavioral `Assert%` + static structural verifiers
+(+ `shp` conformance). See `docs/preregistration.md`.
 
-## Rig hardening (valid regardless of apparatus)
+## Design history (for context)
 
-The harness was rebuilt so results reflect code defects, not test-rig or
-local-framework noise. Defects found and fixed:
+The `/goal` framed this as "successive-generation" decay, so an earlier iteration
+built a generational feature-bloat loop. That was abandoned: with the full prior
+codebase carried forward each generation, a competent agent just appends features
+and original conformance does not erode (control held 31/31 across 6 generations
+on gpt-5.4-mini). That premise is not replicable as an experiment. The paper's
+actual thesis is **constraint decay along a structural-constraint ladder, 0-shot**
+— which is what this rig now implements, with ShapeLang as the intervention.
 
-1. `exists()` returned false for directories (Bun.file().exists() is file-only),
-   so the evaluator could not accept a candidate directory at all under current
-   Bun. Fixed with a stat-based check.
-2. A single fixed port (3137) invited `EADDRINUSE`. Fixed: an ephemeral free port
-   per evaluation with conflict detection + retry.
-3. Rig faults were indistinguishable from code defects. Fixed: a `failureClass`
-   taxonomy; rig classes (install/port/runner-timeout/runner-exit/capacity/harness)
-   are excluded from the metric and auto-retried/resumed, never counted as decay.
-4. A start-script path slip (`bun server.js` while the entry is `src/server.js`)
-   was being miscounted as a boot defect and disproportionately hit layered
-   candidates. Fixed: the evaluator falls back to the real entry on a
-   module-not-found fast-fail; genuine boot throws still fail.
-5. Stale `EXPECTED_ASSERTIONS` constants were synced to real oracle counts.
-6. No golden references existed. Fixed: a known-correct reference per task plus a
-   negative-control mutant; `bun run verify-rig` gates the rig.
+## Rig hardening (valid regardless of experiment shape)
 
-### Rig self-test
+Defects found and fixed so results reflect code, not test-rig/framework noise:
 
-`bun run verify-rig` passes: all five golden references score 1.0 on the blind
-oracle at L0 and L3, and a no-per-user-limit mutant is caught and classed
-`functional_fail`.
+1. `exists()` returned false for directories → evaluator couldn't accept a
+   candidate dir under current Bun. Fixed (stat-based).
+2. Single fixed port → `EADDRINUSE`. Fixed: ephemeral free port per eval + retry.
+3. Rig faults indistinguishable from code defects. Fixed: a `failureClass`
+   taxonomy; rig classes (install/port/runner-timeout/runner-exit/capacity/
+   harness) excluded + retried/resumed, never counted as decay.
+4. Start-script path slip (`bun server.js` vs `src/server.js`) miscounted as a
+   boot defect. Fixed: fall back to the real entry on module-not-found; genuine
+   boot throws still fail.
+5. No golden references / no validated structural verifier. Fixed: a
+   known-correct reference per task + behavioral and structural mutants;
+   `bun run verify-rig` gates the rig.
 
-## Status of results
+### Rig self-test (`bun run verify-rig`) — passes
 
-**The first run (`runs/main`) used a flawed apparatus and is NOT valid evidence
-about ShapeLang. Do not cite it.** Its `shapelang`/`shape` arm was an inlined,
-frozen contract that the harness pasted and validated for the agent — not the
-agent *using* the ShapeLang skill — and its generational loop instructed the
-agent to "refactor and preserve behavior" instead of adding features, so it
-measured the wrong thing (and unsurprisingly found little decay). It also carried
-an `L0–L3` constraint-level axis and a `prose` arm that are not part of this
-experiment. The apparatus has since been corrected:
+- Golden references: 1.0 behavioral **and** structural at L0 and L3 (positive
+  control on both of the paper's axes).
+- `mutant:no-user-limit` → caught, `functional_fail` (behavioral detection).
+- `mutant:upward-import` → structure fails while behavior stays 1.0 (structural
+  detection power, cleanly isolated).
 
-- conditions are now `control` vs `shapelang`, where `shapelang` points the agent
-  at the real skill (`/home/timbo/.claude/skills/shape-lang`) and the agent runs
-  `shp` itself; the control runs with skills isolated;
-- the decay driver is additive **feature bloat** (`tasks/<id>/features.json`),
-  scored against the original blind oracle each generation;
-- the legacy level/prose machinery and `runs/main` are superseded.
+## Status
 
-**The corrected experiment has not yet been run.** `gpt-5.3-codex-spark` is
-usage-limited (weekly cap; next reset reported ~Jun 5), so the run awaits either
-that reset or a `gpt-5.5` tier. To run when a model is available:
+Apparatus complete and rig-validated; **not yet run at scale.**
+`gpt-5.3-codex-spark` is weekly usage-limited (reset ~Jun 5); `gpt-5.4-mini`
+works for smoke tests; `gpt-5.5` tiers are the path for a capable-model run. To
+run when a model is available:
 
 ```bash
 bun run verify-rig
-bun run bench -- --experiment decay --conditions control,shapelang --trials 5 \
-  --model gpt-5.3-codex-spark --copy-auth true     # or: --model gpt-5.5 -c model_reasoning_effort=high
+bun run bench -- --experiment decay --conditions control,shapelang \
+  --levels L0,L1,L2,L3 --trials 5 --copy-auth true \
+  --model gpt-5.3-codex-spark         # or --model gpt-5.5 -c model_reasoning_effort=high
 bun run analyze -- --experiment decay
 ```
 
-Conclusions follow the pre-registered rules. Results will be written to
-`runs/decay/analysis.json` and summarized here once collected.
+Conclusions follow the pre-registered rules; results land in
+`runs/decay/analysis.json` and are summarized here once collected.

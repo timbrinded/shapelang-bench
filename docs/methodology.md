@@ -1,60 +1,57 @@
 # Methodology
 
-This benchmark measures whether **successive-generation code generation degrades
-conformance to the original spec under feature bloat**, and whether **ShapeLang**
-slows that decay. It is not a general code-quality benchmark.
+This benchmark replicates the **constraint decay** phenomenon (Dente et al.,
+arXiv 2605.06445) and tests whether **ShapeLang** reduces it. It is not a general
+code-quality benchmark.
 
 ## Question
 
-Does original-spec conformance rot as an LLM agent piles on features over
-successive generations, and does using ShapeLang (a maintained, `shp`-checked
-architecture model) slow the rot?
+As structural constraints accumulate over a fixed API (L0→L3), does an agent
+using the ShapeLang skill maintain original-spec conformance and structural
+compliance better than a vanilla control?
 
 ## Apparatus
 
-- Fixed original spec per task (API + business rules) with a **blind** HTTP test
-  suite the agent never sees.
-- **gen 0** builds the original spec. **gen k>0** adds the k-th new feature
-  (additive endpoints/fields) on top of gen k−1's code. The agent is not re-shown
-  the original spec and is not told to preserve behavior.
-- Every generation is evaluated against the original blind tests →
-  **original-spec conformance** vs generation.
+- Fixed API contract per task; a blind HTTP oracle the agent never sees.
+- One 0-shot generation per (task, condition, level).
+- Constraint ladder: L0 framework only → L1 +layered (Clean) architecture →
+  L2 +SQLite persistence → L3 +Sequelize ORM. Express on Bun throughout.
+- Dual evaluation, as in the paper: behavioral `Assert%` **and** static
+  architecture/DB/ORM verifiers. Plus `shp` conformance for the shapelang arm.
 
 ## Conditions
 
-- `control`: vanilla Codex (spec / feature ticket only).
-- `shapelang`: Codex told to use the ShapeLang skill (reads `SKILL.md`, authors
-  and maintains `shape/*.shape`, runs `shp` each generation).
-
-Codex runs in an isolated `CODEX_HOME` (no skills dir), so the control cannot see
-ShapeLang; the shapelang arm is pointed at the skill by absolute path. This is
-the only difference between arms.
+- `control`: vanilla Codex (spec + level constraints). Skills isolated via a
+  clean `CODEX_HOME`, so it cannot discover ShapeLang.
+- `shapelang`: same prompt + an instruction to use the ShapeLang skill at its
+  absolute path (author/maintain `shape/*.shape`, run `shp`). The only difference.
 
 ## Metrics and failure classification
 
-- Original-spec conformance (blind oracle pass rate), over non-rig runs.
-- `shp` conformance for the shapelang arm (did the agent keep a valid model?).
+- `Assert%` (behavioral, partial-credit primary metric, over non-rig runs).
+- Structural compliance (architecture/DB/ORM verifiers) — the axis ShapeLang
+  most directly targets.
+- `shp` conformance (shapelang): did the agent keep a valid `.shape`.
 - `failureClass`: rig classes (`rig_*`) are excluded and retried/resumed;
   functional classes (`functional_fail`, `boot_crash`, `health_timeout`,
-  `oracle_exception`, `none`) are real code properties. Server logs/exit codes
-  are retained for auditability. A start-script path mismatch is auto-corrected
-  (it is packaging, not behavior) so it cannot masquerade as decay.
+  `oracle_exception`, `none`) are genuine code properties. A start-script path
+  slip is auto-corrected so it cannot masquerade as decay.
 
 ## Validity guards
 
-1. `bun run verify-rig` passes (golden references clean; mutant caught).
+1. `bun run verify-rig` passes (golden references clean on both axes; behavioral
+   and structural mutants caught).
 2. Rig-failure rate < 5% and balanced across conditions.
-3. n ≥ 5 trials per (task, condition); thinner later generations are flagged
-   `underpowered`.
+3. n ≥ 5 trials per cell; thinner cells flagged `underpowered`.
 
 ## Decision rule
 
-See `docs/preregistration.md`. In brief: a task is evidence only if `control`
-actually decays; ShapeLang "slows decay" requires shapelang final-generation
-conformance significantly above control **and** smaller decay. Single trials are
-anecdotes, not evidence.
+See `docs/preregistration.md`: a task is evidence only if `control` actually
+decays; ShapeLang "reduces decay" requires beating control at L3 on `Assert%`
+(permutation `p < 0.05`, smaller decay) or materially higher structural
+compliance. Single trials are anecdotes, not evidence.
 
 ## Reporting
 
-Conformance, decay, `shp` conformance, and failure class are reported
+Behavior, structure, `shp` conformance, and failure class are reported
 separately. A rig failure is never counted as decay.

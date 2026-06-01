@@ -53,20 +53,24 @@ for (const taskId of PRIMARY) {
     failures += 1;
     continue;
   }
-  // The reference is a positive control for the BLIND ORACLE only: a known-correct
-  // spec implementation must score 1.0. Architecture/Shape are not the reference's
-  // job (gen 0 is unconstrained), so we evaluate at L0 and assert functional
-  // conformance, not structure or shp.
-  const r = await evaluate(ref, taskId, "L0");
-  const ok = r.functionalPassRate === 1 && r.failureClass === "none";
-  if (!ok) failures += 1;
-  rows.push({
-    check: `golden:${taskId}`,
-    status: ok ? "PASS" : "FAIL",
-    fpr: r.functionalPassRate,
-    class: r.failureClass,
-    detail: ok ? "" : (r.behavior?.failures?.[0]?.name ?? r._stderr ?? "").slice(0, 80),
-  });
+  // Positive control on BOTH evaluation axes: the known-correct, layered+Sequelize
+  // reference must score 1.0 on the blind oracle at L0, and at L3 must also pass
+  // the static architecture/DB/ORM verifiers. This validates both that the oracle
+  // accepts good code and that the structural verifiers accept correct structure.
+  for (const level of ["L0", "L3"]) {
+    const r = await evaluate(ref, taskId, level);
+    const structOk = level === "L0" ? true : r.structure?.passed === true;
+    const ok = r.functionalPassRate === 1 && r.failureClass === "none" && structOk;
+    if (!ok) failures += 1;
+    rows.push({
+      check: `golden:${taskId}:${level}`,
+      status: ok ? "PASS" : "FAIL",
+      fpr: r.functionalPassRate,
+      class: r.failureClass,
+      struct: r.structure?.passed,
+      detail: ok ? "" : (r.behavior?.failures?.[0]?.name ?? r.structure?.architecture?.details?.[0] ?? r._stderr ?? "").slice(0, 80),
+    });
+  }
 }
 
 // --- Negative control: mutate the coupon reference to drop the per-user-limit
@@ -114,6 +118,48 @@ if (!mutantDir) {
       : `expected functional_fail w/ limit assertion; got ${r.failureClass}`,
   });
   await removePath(mutantDir);
+}
+
+// --- Structural negative control: add a models-layer file that imports a service
+// (an upward-dependency layering violation). The architecture verifier must mark
+// structure as failed, while behavior stays intact (the file is never required at
+// runtime). Proves the structural verifier has detection power.
+async function buildStructuralMutant(): Promise<string | null> {
+  const ref = joinPath(tasksDir, "coupon-redemptions", "reference");
+  if (!(await exists(ref))) return null;
+  const dir = await tempDir("rigstruct-");
+  for (const file of await listFiles(ref)) {
+    const rel = relativePath(ref, file);
+    if (rel.split("/").includes("node_modules")) continue;
+    await writeText(joinPath(dir, rel), await readText(file));
+  }
+  // Unused upward import: models -> services. Trips the architecture verifier
+  // statically; never loaded at runtime, so behavior is unaffected.
+  await writeText(
+    joinPath(dir, "src", "models", "_layering_violation.js"),
+    'const _up = require("../services/orderService");\nmodule.exports = { _up };\n',
+  );
+  return dir;
+}
+
+const structMutant = await buildStructuralMutant();
+if (!structMutant) {
+  rows.push({ check: "mutant:upward-import", status: "SKIP", detail: "could not build mutant" });
+} else {
+  const r = await evaluate(structMutant, "coupon-redemptions", "L3");
+  const structureCaught = r.structure?.passed === false;
+  const behaviorIntact = r.functionalPassRate === 1; // layering violation shouldn't break behavior
+  const ok = structureCaught && behaviorIntact;
+  if (!ok) failures += 1;
+  rows.push({
+    check: "mutant:upward-import",
+    status: ok ? "PASS" : "FAIL",
+    fpr: r.functionalPassRate,
+    class: r.failureClass,
+    struct: r.structure?.passed,
+    detail: ok ? "architecture verifier caught upward import" : `expected structure fail + behavior 1.0; got struct=${r.structure?.passed} fpr=${r.functionalPassRate}`,
+  });
+  await removePath(structMutant);
 }
 
 console.table(rows);

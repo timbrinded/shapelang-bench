@@ -1,9 +1,10 @@
-import { runsDir } from "./config.ts";
+import { levels as allLevels, runsDir } from "./config.ts";
 import { basename, exists, joinPath, listFiles, parseArgs, readJson, writeJson } from "./bun-utils.ts";
 
-// Analysis for the corrected experiment: conformance to the ORIGINAL spec as a
-// function of generation, control vs shapelang. Decay = drop from gen 0 to the
-// final generation. The hypothesis is that shapelang decays less.
+// Analysis for the constraint-decay experiment. Two evaluation axes, per the
+// paper: behavioral Assert% and static structural compliance. Decay = drop from
+// L0 to the deepest level. Question: does the shapelang arm decay less / hold
+// structural compliance better than control?
 
 const args = parseArgs();
 const experiment = args.experiment ?? "decay";
@@ -17,10 +18,11 @@ const ALPHA = 0.05;
 type Eval = {
   taskId: string;
   condition: string;
-  generation: number | null;
-  functionalPassRate: number | null;
+  level: string;
+  assert: number | null;
   rigFailure: boolean;
   failureClass: string;
+  structurePassed: boolean | null;
   shapeConformant: boolean | null;
 };
 
@@ -34,10 +36,11 @@ async function loadEvals(root: string): Promise<Eval[]> {
       out.push({
         taskId: e.taskId,
         condition: e.condition ?? "control",
-        generation: e.generation ?? null,
-        functionalPassRate: e.functionalPassRate ?? null,
+        level: e.level,
+        assert: e.functionalPassRate ?? null,
         rigFailure: Boolean(e.rigFailure),
         failureClass: e.failureClass ?? "unknown",
+        structurePassed: e.structure?.passed ?? null,
         shapeConformant: e.structure?.shape?.conformant ?? null,
       });
     } catch {
@@ -79,19 +82,6 @@ function permutationTest(a: number[], b: number[], iterations: number): number {
   return (extreme + 1) / (iterations + 1);
 }
 
-function slope(points: Array<{ x: number; y: number }>): number {
-  if (points.length < 2) return NaN;
-  const mx = mean(points.map((p) => p.x));
-  const my = mean(points.map((p) => p.y));
-  let num = 0;
-  let den = 0;
-  for (const p of points) {
-    num += (p.x - mx) * (p.y - my);
-    den += (p.x - mx) ** 2;
-  }
-  return den === 0 ? NaN : num / den;
-}
-
 const evals = await loadEvals(expRoot);
 if (evals.length === 0) {
   console.log(`No evaluations under ${expRoot}. Run: bun src/bench.ts --experiment ${experiment} ...`);
@@ -100,40 +90,50 @@ if (evals.length === 0) {
 
 const tasks = [...new Set(evals.map((e) => e.taskId))].sort();
 const conditions = [...new Set(evals.map((e) => e.condition))];
-const gens = [...new Set(evals.filter((e) => e.generation !== null).map((e) => e.generation as number))].sort((a, b) => a - b);
+const presentLevels = allLevels.filter((l) => evals.some((e) => e.level === l));
+const firstLevel = presentLevels[0];
+const lastLevel = presentLevels[presentLevels.length - 1];
 
-// rates(task, condition, gen) -> functional pass rates (rig failures excluded).
-function rates(task: string, condition: string, gen: number): number[] {
+// Non-rig assertion rates for a cell.
+function asserts(task: string, condition: string, level: string): number[] {
   return evals
-    .filter((e) => e.taskId === task && e.condition === condition && e.generation === gen && !e.rigFailure && e.functionalPassRate !== null)
-    .map((e) => e.functionalPassRate as number);
+    .filter((e) => e.taskId === task && e.condition === condition && e.level === level && !e.rigFailure && e.assert !== null)
+    .map((e) => e.assert as number);
+}
+function structRate(task: string, condition: string, level: string): number {
+  const rows = evals.filter((e) => e.taskId === task && e.condition === condition && e.level === level && !e.rigFailure && e.structurePassed !== null);
+  return rows.length ? rows.filter((e) => e.structurePassed).length / rows.length : NaN;
+}
+function shapeRate(task: string, condition: string, level: string): number {
+  const rows = evals.filter((e) => e.taskId === task && e.condition === condition && e.level === level && e.shapeConformant !== null);
+  return rows.length ? rows.filter((e) => e.shapeConformant).length / rows.length : NaN;
 }
 
 // Per-cell table.
 const cellRows: any[] = [];
 for (const task of tasks) {
   for (const condition of conditions) {
-    for (const gen of gens) {
-      const r = rates(task, condition, gen);
-      const all = evals.filter((e) => e.taskId === task && e.condition === condition && e.generation === gen);
-      if (all.length === 0) continue;
-      const [lo, hi] = bootstrapCI(r, bootstrapIterations);
-      const shapeApplicable = all.filter((e) => e.shapeConformant !== null);
+    for (const level of presentLevels) {
+      const all = evals.filter((e) => e.taskId === task && e.condition === condition && e.level === level);
+      if (!all.length) continue;
+      const a = asserts(task, condition, level);
+      const [lo, hi] = bootstrapCI(a, bootstrapIterations);
       cellRows.push({
         task,
         condition,
-        gen,
+        level,
         trials: all.length,
-        measured: r.length,
+        measured: a.length,
         rigFail: all.filter((e) => e.rigFailure).length,
-        origConformance: round(mean(r), 3),
+        assertMean: round(mean(a), 3),
         ci95: `[${round(lo, 3)}, ${round(hi, 3)}]`,
-        shapeConformantRate: shapeApplicable.length ? round(shapeApplicable.filter((e) => e.shapeConformant).length / shapeApplicable.length, 2) : "n/a",
+        structPassRate: round(structRate(task, condition, level), 2),
+        shapeConfRate: round(shapeRate(task, condition, level), 2),
       });
     }
   }
 }
-console.log(`\n=== Original-spec conformance by generation (rig failures excluded) — '${experiment}' ===`);
+console.log(`\n=== Per-cell: behavioral Assert% + structural compliance + shp conformance — '${experiment}' ===`);
 console.table(cellRows);
 
 // Rig health (validity gate).
@@ -148,44 +148,33 @@ for (const e of evals) {
 console.log(`\n=== Rig health by condition (must be low + balanced) ===`);
 console.table([...rigByCond.entries()].map(([condition, r]) => ({ condition, runs: r.total, rigFailures: r.rig, rigRate: round(r.rig / r.total), classes: Object.entries(r.classes).map(([k, v]) => `${k}:${v}`).join(" ") })));
 
-// Trajectories + decay + control-vs-shapelang contrast.
-const finalGen = gens.length ? gens[gens.length - 1] : 0;
-const traj: any[] = [];
+// Decay trajectory + verdict.
+const decayRows: any[] = [];
 const verdicts: any[] = [];
 for (const task of tasks) {
   for (const condition of conditions) {
-    const pts = gens.map((g) => ({ x: g, y: mean(rates(task, condition, g)) })).filter((p) => Number.isFinite(p.y));
-    if (pts.length) {
-      traj.push({
-        task,
-        condition,
-        gen0: round(pts[0].y, 3),
-        genFinal: round(pts[pts.length - 1].y, 3),
-        decay: round(pts[0].y - pts[pts.length - 1].y, 3),
-        slopePerGen: round(slope(pts), 4),
-        points: pts.map((p) => `g${p.x}:${round(p.y, 2)}`).join(" "),
-      });
-    }
+    const traj = presentLevels.map((l) => `${l}:${round(mean(asserts(task, condition, l)), 2)}`).join(" ");
+    const structTraj = presentLevels.map((l) => `${l}:${round(structRate(task, condition, l), 2)}`).join(" ");
+    const decay = round(mean(asserts(task, condition, firstLevel)) - mean(asserts(task, condition, lastLevel)), 3);
+    decayRows.push({ task, condition, assert: traj, decayL0toLn: decay, structure: structTraj });
   }
 
-  // Verdict: shapelang reduces original-spec decay vs control.
-  const ctlFinal = rates(task, "control", finalGen);
-  const shpFinal = rates(task, "shapelang", finalGen);
-  const ctlPts = gens.map((g) => ({ x: g, y: mean(rates(task, "control", g)) })).filter((p) => Number.isFinite(p.y));
-  const shpPts = gens.map((g) => ({ x: g, y: mean(rates(task, "shapelang", g)) })).filter((p) => Number.isFinite(p.y));
-  const ctlDecay = ctlPts.length >= 2 ? ctlPts[0].y - ctlPts[ctlPts.length - 1].y : NaN;
-  const shpDecay = shpPts.length >= 2 ? shpPts[0].y - shpPts[shpPts.length - 1].y : NaN;
-  const underpowered = ctlFinal.length < MIN_TRIALS || shpFinal.length < MIN_TRIALS;
+  // Verdict: does shapelang reduce decay vs control? (per task, at the deepest level)
+  const ctlLast = asserts(task, "control", lastLevel);
+  const shpLast = asserts(task, "shapelang", lastLevel);
+  const ctlDecay = mean(asserts(task, "control", firstLevel)) - mean(asserts(task, "control", lastLevel));
+  const shpDecay = mean(asserts(task, "shapelang", firstLevel)) - mean(asserts(task, "shapelang", lastLevel));
+  const underpowered = ctlLast.length < MIN_TRIALS || shpLast.length < MIN_TRIALS;
 
   let status: string;
-  if (!ctlFinal.length || !shpFinal.length) {
+  if (!ctlLast.length || !shpLast.length) {
     status = "insufficient-data";
   } else if (!(ctlDecay > DECAY_EPS)) {
-    status = "no-decay"; // control did not degrade across generations on this task
+    status = "no-decay"; // control didn't degrade -> nothing to rescue on this task
   } else {
-    const pFinal = permutationTest(ctlFinal, shpFinal, permutationIterations);
-    const shapelangBetter = mean(shpFinal) - mean(ctlFinal) > 0 && pFinal < ALPHA && shpDecay < ctlDecay;
-    status = shapelangBetter ? "shapelang-reduces-decay" : "shapelang-not-supported";
+    const pAssert = permutationTest(ctlLast, shpLast, permutationIterations);
+    const better = mean(shpLast) - mean(ctlLast) > 0 && pAssert < ALPHA && shpDecay < ctlDecay;
+    status = better ? "shapelang-reduces-decay" : "shapelang-not-supported";
   }
   verdicts.push({
     task,
@@ -193,15 +182,17 @@ for (const task of tasks) {
     underpowered,
     controlDecay: round(ctlDecay, 3),
     shapelangDecay: round(shpDecay, 3),
-    controlFinal: round(mean(ctlFinal), 3),
-    shapelangFinal: round(mean(shpFinal), 3),
-    deltaFinal: round(mean(shpFinal) - mean(ctlFinal), 3),
-    pFinal: ctlFinal.length && shpFinal.length ? round(permutationTest(ctlFinal, shpFinal, permutationIterations), 4) : NaN,
+    [`control@${lastLevel}`]: round(mean(ctlLast), 3),
+    [`shapelang@${lastLevel}`]: round(mean(shpLast), 3),
+    deltaAssert: round(mean(shpLast) - mean(ctlLast), 3),
+    pAssert: ctlLast.length && shpLast.length ? round(permutationTest(ctlLast, shpLast, permutationIterations), 4) : NaN,
+    [`structControl@${lastLevel}`]: round(structRate(task, "control", lastLevel), 2),
+    [`structShapelang@${lastLevel}`]: round(structRate(task, "shapelang", lastLevel), 2),
   });
 }
-console.log(`\n=== Per (task,condition) original-spec conformance trajectory + decay ===`);
-console.table(traj);
-console.log(`\n=== Pre-registered verdicts: does shapelang reduce original-spec decay vs control? (underpowered = n<${MIN_TRIALS}) ===`);
+console.log(`\n=== Constraint-decay trajectories (Assert% and structural compliance, ${firstLevel}->${lastLevel}) ===`);
+console.table(decayRows);
+console.log(`\n=== Pre-registered verdicts: does shapelang reduce constraint decay vs control? (underpowered = n<${MIN_TRIALS}) ===`);
 console.table(verdicts);
 
 await writeJson(joinPath(expRoot, "analysis.json"), {
@@ -209,7 +200,7 @@ await writeJson(joinPath(expRoot, "analysis.json"), {
   evaluatedRuns: evals.length,
   cells: cellRows,
   rigHealth: [...rigByCond.entries()].map(([condition, r]) => ({ condition, runs: r.total, rigRate: round(r.rig / r.total) })),
-  trajectories: traj,
+  decay: decayRows,
   verdicts,
   generatedAt: new Date().toISOString(),
 });

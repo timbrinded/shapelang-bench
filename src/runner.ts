@@ -1,38 +1,13 @@
-import { bunBin, defaultPort, runsDir } from "./config.ts";
+import { bunBin, defaultPort } from "./config.ts";
 import {
   exists,
   joinPath,
-  listFiles,
   readJson,
   readText,
-  relativePath,
   runProcess,
   writeJson,
   writeText,
 } from "./bun-utils.ts";
-
-// Files carried forward between generations (the candidate's own source), minus
-// anything that would contaminate the next generation's clean install/build.
-function shouldSeed(relative: string): boolean {
-  const parts = relative.split("/");
-  if (parts.includes("node_modules") || parts.includes(".git")) return false;
-  if (/\.(sqlite|sqlite-shm|sqlite-wal|db)$/.test(relative)) return false;
-  if (/(^|\/)(bun\.lock|package-lock\.json|pnpm-lock\.yaml|yarn\.lock)$/.test(relative)) {
-    return false;
-  }
-  return true;
-}
-
-export async function seedWork(workDir: string, fromDir: string): Promise<number> {
-  let copied = 0;
-  for (const file of await listFiles(fromDir)) {
-    const relative = relativePath(fromDir, file);
-    if (!shouldSeed(relative)) continue;
-    await writeText(joinPath(workDir, relative), await readText(file));
-    copied += 1;
-  }
-  return copied;
-}
 
 async function copyAuth(codexHome: string): Promise<boolean> {
   const home = Bun.env.HOME;
@@ -155,5 +130,3 @@ function dirnameOf(path: string): string {
   const index = path.lastIndexOf("/");
   return index <= 0 ? "." : path.slice(0, index);
 }
-
-export { runsDir };

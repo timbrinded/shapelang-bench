@@ -1,12 +1,18 @@
 {
-  "suite": "spec-conformance-decay-under-feature-bloat",
-  "objective": "Measure whether successive-generation code generation degrades conformance to the original spec as feature bloat accumulates, and whether using ShapeLang slows it. gen 0 builds the spec; each later generation adds a new feature; every generation is scored against the original blind tests.",
-  "conditions": {
-    "control": "Vanilla coding agent given only the spec / feature ticket.",
-    "shapelang": "Same agent told to use the ShapeLang skill (reads SKILL.md, maintains shape/*.shape, runs shp). Codex runs with an isolated CODEX_HOME so the control cannot discover the skill."
+  "suite": "constraint-decay-with-shapelang",
+  "objective": "Replicate the constraint-decay phenomenon (Dente et al., arXiv 2605.06445): a fixed API under an increasing structural-constraint ladder (L0 framework -> L1 +architecture -> L2 +SQLite -> L3 +Sequelize ORM), 0-shot per level. Test whether using the ShapeLang skill reduces the decay vs a vanilla control.",
+  "levels": {
+    "L0": "Express only, in-memory storage allowed (baseline).",
+    "L1": "L0 + layered (Clean) architecture.",
+    "L2": "L1 + SQLite persistence (schema on startup).",
+    "L3": "L2 + Sequelize ORM for all data access."
   },
-  "validation": "bun run verify-rig must pass (golden references score 1.0 on the blind oracle; mutant caught) before any agent-run result is believed. Each task has tasks/<id>/reference/ as a positive control and tasks/<id>/features.json as the ordered feature-bloat tickets.",
-  "metric": "Original-spec conformance = fraction of the original blind HTTP assertions passed, per generation; decay = conformance(gen 0) - conformance(final gen). See docs/preregistration.md.",
+  "conditions": {
+    "control": "Vanilla coding agent given the spec + the level's structural constraints. Codex runs with an isolated CODEX_HOME so it cannot discover ShapeLang.",
+    "shapelang": "Same agent + same constraints, told to use the ShapeLang skill (reads SKILL.md, maintains shape/*.shape, runs shp)."
+  },
+  "metrics": "Dual, per the paper: behavioral Assert% (blind oracle) AND static architecture/DB/ORM verifier compliance; plus shp conformance for the shapelang arm. Decay = metric(L0) - metric(L3). See docs/preregistration.md.",
+  "validation": "bun run verify-rig must pass before any result is believed: golden references score 1.0 behavioral + structural at L0/L3; a behavioral mutant and a structural mutant are each caught. Each task has tasks/<id>/reference/ as a positive control and src/behaviors/<id>.ts as the blind oracle.",
   "tasks": [
     { "id": "coupon-redemptions", "domain": "Coupon budget and per-user limit accounting", "assertions": 31 },
     { "id": "stipend-awards", "domain": "Stipend award and rescission accounting", "assertions": 31 },
