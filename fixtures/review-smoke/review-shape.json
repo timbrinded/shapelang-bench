@@ -1,0 +1,12 @@
+[
+  {
+    "path": "src/session.ts",
+    "line": 12,
+    "body": "Null dereference: session config can be missing, dereferencing it will crash the loader"
+  },
+  {
+    "path": "src/util.ts",
+    "line": 3,
+    "body": "Consider renaming the helper variable for readability"
+  }
+]

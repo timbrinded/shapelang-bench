@@ -1,5 +1,9 @@
 runs/*
 !runs/.gitkeep
+# Phase-1 Shape index cache and clones (review benchmark)
+index/
+# shp CLI built from the shapelang branch (scripts/build-shp.sh)
+external/shp-build/
 node_modules/
 bun.lock
 package-lock.json
@@ -10,4 +14,9 @@ npm-shrinkwrap.json
 *.sqlite-*
 *.db
 .env
+# Never commit Codex/ChatGPT subscription auth (secret) — defensive, beyond runs/
+**/auth.json
+**/codex-home/
+**/codex-auth*.json
+.codex/
 .DS_Store

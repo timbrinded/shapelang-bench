@@ -1,0 +1,7 @@
+[
+  {
+    "path": "src/util.ts",
+    "line": 3,
+    "body": "Consider renaming the helper variable for readability"
+  }
+]

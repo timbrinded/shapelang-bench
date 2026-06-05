@@ -107,18 +107,22 @@ export async function tempDir(prefix: string): Promise<string> {
 }
 
 export async function listFiles(root: string): Promise<string[]> {
-  if (!(await exists(root))) return [];
-
-  const glob = new Bun.Glob("**/*");
+  // NB: do not gate on exists() — Bun.file().exists() is false for directories.
+  // Scanning a missing dir throws; treat that as "no files".
   const files: string[] = [];
-  for await (const relative of glob.scan({ cwd: root, dot: true })) {
-    const path = joinPath(root, String(relative));
-    try {
-      const stat = await Bun.file(path).stat();
-      if (stat.isFile()) files.push(path);
-    } catch {
-      // The glob can race with cleanup in run directories. Ignore vanished files.
+  try {
+    const glob = new Bun.Glob("**/*");
+    for await (const relative of glob.scan({ cwd: root, dot: true })) {
+      const path = joinPath(root, String(relative));
+      try {
+        const stat = await Bun.file(path).stat();
+        if (stat.isFile()) files.push(path);
+      } catch {
+        // The glob can race with cleanup in run directories. Ignore vanished files.
+      }
     }
+  } catch {
+    return [];
   }
   return files.sort();
 }
