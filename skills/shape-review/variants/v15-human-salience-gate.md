@@ -1,6 +1,6 @@
 ---
-name: shape-review
-description: "Phase 2 (scored). Review a PR diff for real bugs. Exhaustive diff-only recall pass first (prune nothing), augment with cited cross-object bugs from a whole-codebase Shape model (mounted at ./shape, shp CLI on PATH), then a closed-list reality gate plus a human-salience prediction gate (emit the bugs a careful human would flag; never drop a severe bug). Promoted from variant v15-human-salience-gate: best generalized result at n=3 (+8.7 F1 overall vs same-model baseline; positive in all 5 repos; +10 on grafana/sentry). Emits review.json."
+name: v15-human-salience-gate
+description: Phase 2 (scored). Build the recall floor with one exhaustive diff pass that prunes nothing, augment with cited cross-object bugs from the whole-codebase Shape model (mounted at ./shape, shp CLI on PATH), then operationalize the scoring metric directly — for each real candidate predict whether a careful human reviewer would flag THIS bug in THIS PR using concrete salience signals (severity, behavior impact, non-obviousness, authored-invariant violation). Emit salient real bugs; suppress only via a closed list of named non-bug reasons plus clearly-low-salience trivia, and NEVER drop a severe bug for low salience. Emits review.json.
 ---
 
 # Shape Review (Phase 2, scored) — human-salience prediction gate

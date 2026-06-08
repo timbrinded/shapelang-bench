@@ -44,12 +44,49 @@ to the generated AST resource for `parseRefreshTokenResponse`, or attach
 `source ts("packages/.../file.ts#fn")`. Prefer prelude relation kinds
 (`calls`, `provides`, `coordinated_call`, `callbacks`).
 
+## Breadth: cover the WHOLE architecture, not a few subsystems
+
+A downstream reviewer can only use Shape on code that has authored invariants. A
+PR that touches a subsystem with NO Layer-2 coverage gets no grounding — the
+reviewer falls back to a diff-only read there. So the value of this model is set
+by how much of the architecture-significant surface it covers. **Author broadly.**
+
+- Begin by ENUMERATING every architecture-significant subsystem in the repo (the
+  top-level domains/services/packages, the cross-cutting concerns — auth/permissions,
+  data access & transactions, background/async work, caching, eventing/outbox,
+  external integrations, request lifecycle). Produce this list FIRST, from the
+  directory layout + `shape/generated/ast/manifest.json` + `shp graph --stats`.
+- Then author Layer-2 components, boundaries, and INVARIANTS for **each** subsystem
+  on that list — aim for comprehensive coverage of the major subsystems, not a
+  handful. A large codebase warrants many authored `.shape` files across many
+  subsystem areas, each grounded. Thin coverage (a few files over a huge tree) is
+  the failure mode to avoid: it leaves most PRs ungrounded.
+- "Do not read every file" is about EFFICIENCY of investigation (sample within a
+  subsystem; lean on the AST layer), NOT a license to cover only a few subsystems.
+  Be efficient per subsystem; be exhaustive across subsystems.
+- Prioritize the invariants most likely to matter to a reviewer: security/permission
+  rules, data-integrity & transactional constraints, ownership/atomicity, audited
+  writes, required call ordering, and module contracts ("this helper returns the
+  parsed credential, never the raw response").
+
+## Anti-overfitting (hard rule)
+
+This model is authored ONCE from the codebase's **general architecture**, with no
+knowledge of any particular change under review. **Never** author an invariant
+because it would catch a specific pull request, diff, or changed file; never read
+or target review/benchmark inputs. Author what the architecture genuinely asserts
+as an invariant for normal callers; if a real invariant happens to cover a changed
+file later, that is the model working as intended — but the authoring decision must
+come from the architecture, never from a known change. Model honest uncertainty
+(`effects unknown`) rather than inventing a claim to widen coverage.
+
 ## Procedure
 
-1. Survey: use the directory layout, `shape/generated/ast/manifest.json`, and
-   `shp graph --stats` to find the architecture-significant areas. Sample key
-   modules; do not read every file.
-2. Author Layer 2 shapes per the categories above, grounding each in Layer 1.
+1. Survey & enumerate: use the directory layout, `shape/generated/ast/manifest.json`,
+   and `shp graph --stats` to build the full list of architecture-significant
+   subsystems (see Breadth). Sample key modules within each; do not read every file.
+2. Author Layer 2 shapes per the categories above for EACH subsystem on the list,
+   grounding each claim in Layer 1.
 3. Model honest uncertainty (`effects unknown`) rather than inventing claims.
    Keep final forbids final.
 4. Validate: `shp fmt --check` then `shp check`. Investigate with `shp explain`,
@@ -57,6 +94,7 @@ to the generated AST resource for `parseRefreshTokenResponse`, or attach
 
 ## Done when
 
-`shape/` contains an accurate Layer-2 architecture+invariant model (covering the
-significant areas, grounded in the generated AST), and `shp fmt --check` +
-`shp check` pass.
+`shape/` contains an accurate Layer-2 architecture+invariant model that covers the
+major subsystems **broadly** (not just a few), every claim grounded in the generated
+AST, authored purely from the architecture (no change-targeting), and `shp fmt
+--check` + `shp check` pass.

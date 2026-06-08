@@ -77,7 +77,15 @@ async function scoreCodex(
   condition: ReviewCondition,
   trial?: number,
 ): Promise<EvaluationsFile> {
-  const tool = toolName(condition, trial);
+  return scoreToolCodex(ctx, toolName(condition, trial));
+}
+
+// Score one arbitrary tool name with the Codex judge. Same logic as the
+// condition-based path but keyed by an explicit tool, so the fan-out harness can
+// judge per-variant tools (e.g. shapelang-<variantId>-t1) that have no fixed
+// ReviewCondition. Reads/writes the shared evaluations.json + judge-cache.json,
+// so callers MUST invoke this serially across tools (no concurrent scoring).
+export async function scoreToolCodex(ctx: ReviewContext, tool: string): Promise<EvaluationsFile> {
   const dir = modelDir(ctx.offlineDir, ctx.judgeModel);
   const data = await loadBenchmarkData(ctx.offlineDir);
 

@@ -149,23 +149,60 @@ export async function runProcess(
     stderr: "pipe",
   });
 
+  // Writing to / closing stdin can EPIPE if the child already died (e.g. codex
+  // crashing on launch); never let that throw out of runProcess.
   if (options.stdin !== undefined) {
-    child.stdin.write(options.stdin);
+    try {
+      child.stdin.write(options.stdin);
+    } catch {
+      // child gone before stdin accepted — code/stderr below tell the real story
+    }
   }
-  child.stdin.end();
+  try {
+    child.stdin.end();
+  } catch {
+    // ignore
+  }
 
+  // Begin draining the pipes immediately so the child never blocks on a full
+  // buffer. These promises resolve on pipe EOF.
+  const stdoutPromise = new Response(child.stdout).text().catch(() => "");
+  const stderrPromise = new Response(child.stderr).text().catch(() => "");
+
+  // Hard kill at the deadline: SIGTERM, then SIGKILL shortly after in case the
+  // child ignores SIGTERM. Guarantees `child.exited` resolves within ~timeout.
   let timedOut = false;
+  let sigkillTimer: ReturnType<typeof setTimeout> | undefined;
   const timer = setTimeout(() => {
     timedOut = true;
-    child.kill("SIGTERM");
+    try {
+      child.kill("SIGTERM");
+    } catch {
+      // already gone
+    }
+    sigkillTimer = setTimeout(() => {
+      try {
+        child.kill("SIGKILL");
+      } catch {
+        // already gone
+      }
+    }, 5_000);
   }, options.timeoutMs);
 
-  const [code, stdout, stderr] = await Promise.all([
-    child.exited,
-    new Response(child.stdout).text(),
-    new Response(child.stderr).text(),
-  ]);
-
+  const code = await child.exited;
   clearTimeout(timer);
+  if (sigkillTimer) clearTimeout(sigkillTimer);
+
+  // The child has exited, but a lingering grandchild can inherit the stdout/stderr
+  // fds and hold the pipe open, so `.text()` may never see EOF — this once wedged a
+  // worker for 8+ hours. Cap the post-exit drain: take whatever is buffered after a
+  // short grace and move on. Callers that need full output read it from disk
+  // (review.json / --output-last-message), so abandoning a stuck pipe is safe.
+  const DRAIN_GRACE_MS = 15_000;
+  const drained = await Promise.race([
+    Promise.all([stdoutPromise, stderrPromise]),
+    new Promise<null>((resolve) => setTimeout(() => resolve(null), DRAIN_GRACE_MS)),
+  ]);
+  const [stdout, stderr] = drained ?? ["", ""];
   return { code, stdout, stderr, timedOut };
 }

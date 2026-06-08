@@ -34,6 +34,8 @@ export function toolName(condition: ReviewCondition, trial?: number): string {
 // scores sit beside the published ones for that judge.
 export const defaultJudgeModel = Bun.env.JUDGE_MODEL ?? "gpt-5.5";
 
-// The reviewer engine (Codex). Default to a model Martian also reports so the
-// baseline condition can be sanity-checked against the published leaderboard.
-export const defaultReviewerModel = Bun.env.REVIEW_MODEL ?? "gpt-5.2";
+// The reviewer engine (Codex). gpt-5.2 was retired for ChatGPT-account Codex
+// (400 "model is not supported"); gpt-5.5 is the account default that works. The
+// FIXED baseline must be (re)scored with the SAME reviewer as the variants so the
+// shape−baseline delta stays pure Shape and not a model artifact.
+export const defaultReviewerModel = Bun.env.REVIEW_MODEL ?? "gpt-5.5";

@@ -69,40 +69,67 @@ function extractVerdict(text: string): { match?: boolean; confidence?: number } 
 
 // One judge call via `codex exec` (subscription auth, read-only sandbox). Mirrors
 // src/run-codex.ts flags so it uses the same proven CLI surface.
+//
+// CRITICAL: a usage-limited / timed-out / crashed call returns EMPTY output. That
+// is NOT a "no match" verdict — returning false for it both scores real matches as
+// misses AND (because the caller caches verdicts) POISONS the cache with a bogus
+// false that survives the limit reset. So we THROW on empty output (tagged when the
+// stderr looks like a usage limit) and only return a boolean when the model
+// actually produced a parseable response. One retry absorbs a transient blip; a
+// real usage limit persists and surfaces honestly.
 async function runJudge(prompt: string, opts: CodexJudgeOptions): Promise<boolean> {
-  const outFile = joinPath(Bun.env.TMPDIR ?? "/tmp", `shp-judge-${crypto.randomUUID()}.txt`);
-  const result = await runProcess(
-    "codex",
-    [
-      "exec",
-      "--model",
-      opts.model,
-      "--ignore-user-config",
-      "--ignore-rules",
-      "--ephemeral",
-      "--skip-git-repo-check",
-      "--sandbox",
-      "read-only",
-      "--output-last-message",
-      outFile,
-      "-C",
-      opts.cwd,
-    ],
-    {
-      cwd: opts.cwd,
-      env: { ...Bun.env, HOME: opts.codexHome, CODEX_HOME: opts.codexHome, PATH: Bun.env.PATH ?? "" },
-      stdin: prompt,
-      timeoutMs: opts.timeoutMs,
-    },
-  );
-  let output = "";
-  if (await exists(outFile)) {
-    output = await readText(outFile);
-    await removePath(outFile);
+  for (let attempt = 1; attempt <= 2; attempt += 1) {
+    const outFile = joinPath(Bun.env.TMPDIR ?? "/tmp", `shp-judge-${crypto.randomUUID()}.txt`);
+    const result = await runProcess(
+      "codex",
+      [
+        "exec",
+        "--model",
+        opts.model,
+        "--ignore-user-config",
+        "--ignore-rules",
+        "--ephemeral",
+        "--skip-git-repo-check",
+        "--sandbox",
+        "read-only",
+        "--output-last-message",
+        outFile,
+        "-C",
+        opts.cwd,
+      ],
+      {
+        cwd: opts.cwd,
+        env: { ...Bun.env, HOME: opts.codexHome, CODEX_HOME: opts.codexHome, PATH: Bun.env.PATH ?? "" },
+        stdin: prompt,
+        timeoutMs: opts.timeoutMs,
+      },
+    );
+    let output = "";
+    if (await exists(outFile)) {
+      output = await readText(outFile);
+      await removePath(outFile);
+    }
+    if (!output) output = result.stdout;
+
+    if (output.trim()) {
+      // The model produced a response — parse it. An unparseable-but-present
+      // response is a genuine (reproducible) "no match", safe to cache.
+      const verdict = extractVerdict(output);
+      return verdict?.match === true;
+    }
+
+    // Empty output: failed call. Retry once for a transient blip; otherwise throw.
+    if (attempt === 2) {
+      const err = result.stderr.trim();
+      const rateLimited = /usage limit|rate.?limit|not supported|quota/i.test(err);
+      throw new Error(
+        `judge produced no output${rateLimited ? " [USAGE-LIMIT/MODEL]" : ""} ` +
+          `(code=${result.code}${result.timedOut ? ",timedOut" : ""}; stderr: ${err.slice(-200).replace(/\s+/g, " ")})`,
+      );
+    }
   }
-  if (!output) output = result.stdout;
-  const verdict = extractVerdict(output);
-  return verdict?.match === true;
+  // Unreachable (loop either returns or throws), but satisfies the type checker.
+  throw new Error("judge: unreachable");
 }
 
 async function pool<T>(items: T[], concurrency: number, worker: (item: T) => Promise<void>): Promise<void> {

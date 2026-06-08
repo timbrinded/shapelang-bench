@@ -39,7 +39,8 @@ export function listPrs(data: BenchmarkData, subset?: string[]): PrSpec[] {
   return specs;
 }
 
-// Cache key for a project index: a repo at a specific base commit.
-export function indexKey(repoName: string, baseSha: string): string {
-  return `${repoName}@${baseSha}`;
+// Cache key for a project index — one index per repository, reused across all of
+// that repo's PRs (we index a representative checkout, not per-PR base).
+export function indexKey(repoName: string): string {
+  return repoName;
 }
