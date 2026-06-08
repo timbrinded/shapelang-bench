@@ -26,9 +26,16 @@ supported.)
 ## 1. TL;DR — RESOLVED (2026-06-08)
 
 - **SHIPPED: `v15-human-salience-gate` → `skills/shape-review/SKILL.md`** (body byte-identical).
-  Best generalized, non-overfit result at **n=3**: **+8.7 F1 overall** vs the same-model
-  `gpt-5.5` baseline (35.4% → 44.1%), **positive in ALL FIVE repos**, clearing +10 where Shape
-  structurally can (grafana +10.4, sentry +25.0). ~3× the prior best (old v2 +2.8).
+  Best generalized, non-overfit result at **n=3**: **+8.4 F1 overall** vs the same-model
+  `gpt-5.5` baseline (validated end-to-end on indexes re-authored with the shipped broadened
+  `shape-index` skill; 35.4% → 43.8%), **positive in ALL FIVE repos**, clearing +10 where Shape
+  structurally can (grafana +14.4, sentry +22.6). ~3× the prior best (old v2 +2.8). (An earlier
+  n=3 pass on mixed index-skill versions gave +8.7; the two agree within trial noise.)
+- **Validated end-to-end (2026-06-08):** all 5 Layer-2 indexes re-authored with the shipped
+  broadened `shape-index` skill (layer2Only) + v15 re-run at n=3 → reproduces the headline; the
+  broadened index helped grafana and didn't crater the local repos. The sentry-greptile point
+  estimate swung +8.6→+2.7 across two independent n=3 samples on the SAME index — a live
+  demonstration of the 4-PR wide-CI caveat. Full table in `docs/golden-goose-log.md`.
 - **The literal goal "+10 in EVERY repo" is structurally INFEASIBLE without overfitting** —
   PROVEN at n=3, not a tuning failure. The per-repo ceiling tracks the fraction of cross-object
   golden bugs: grafana 32% / sentry 26% clear +10; cal.com 26% (+8.1), sentry-greptile 15%

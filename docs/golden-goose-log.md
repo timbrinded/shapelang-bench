@@ -242,6 +242,25 @@ is arithmetically out of reach no matter the skill. Confirmed three ways: (1) di
 inspection (disc/sg bugs are wrong-key, falsy-check, import, Django-misuse — all local);
 (2) index enrichment of sg (3→25 grounded invariants) moved nothing; (3) n=3 stability.
 
+## End-to-end validation (2026-06-08) — shipped skills reproduce the result
+The first n=3 table mixed index-skill versions (4 repos built with the old thin shape-index
+skill, sentry-greptile with the broadened one). To validate the SHIPPED skills self-
+consistently, re-authored ALL 5 Layer-2 indexes with the shipped broadened `shape-index`
+skill (layer2Only, reusing cached AST: grafana 8→28, sentry 4→10, cal 4→7, disc 3→6, sg=25)
+and re-ran v15 at n=3 over all 34 PRs:
+
+| | OVERALL | cal.com | discourse | grafana | sentry | sentry-greptile |
+|---|---|---|---|---|---|---|
+| v15 (broadened-skill indexes) | **+8.4** | +3.1 | +2.3 | **+14.4** | **+22.6** | +2.7 |
+| v15 (original-mixed indexes)  | +8.7 | +3.6 | +1.2 | +10.4 | +25.0 | +8.6 |
+
+**Reproduces the headline (+8.4 ≈ +8.7), positive in all 5, +10 on grafana/sentry.** The
+broadened index is safe + net-positive: grafana IMPROVED (richer cross-object grounding) and
+the local repos did NOT crater (no FP flood). The sentry-greptile +8.6→+2.7 swing across two
+independent n=3 samples on the SAME index is a clean demonstration of the 4-PR wide-CI caveat.
+The validated, reproducible figure for the shipped skills is **+8.4 F1 overall** on
+consistent broadened-skill indexes.
+
 **Outcome (user decision 2026-06-08: "ship v15 + honest report").** Promoted
 `v15-human-salience-gate` → `skills/shape-review/SKILL.md` (body byte-identical). It is the
 best GENERALIZED, non-overfit result: **+8.7 F1 overall (35.4%→44.1%), positive in ALL FIVE
