@@ -1,0 +1,15 @@
+{
+  "https://github.com/acme/widgets/pull/1": {
+    "pr_title": "Add session config loader",
+    "original_url": "https://github.com/acme/widgets/pull/1",
+    "source_repo": "widgets",
+    "golden_source_file": "widgets.json",
+    "golden_comments": [
+      {
+        "comment": "Possible null dereference when the session config is missing causes a crash",
+        "severity": "High"
+      }
+    ],
+    "reviews": []
+  }
+}

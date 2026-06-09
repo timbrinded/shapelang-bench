@@ -1,5 +1,9 @@
 runs/*
 !runs/.gitkeep
+# Review-benchmark generated artifacts (review-bench/artifacts/); variants/ is committed.
+review-bench/artifacts/runs/
+review-bench/artifacts/index/
+review-bench/artifacts/shp-build/
 node_modules/
 bun.lock
 package-lock.json
@@ -10,4 +14,9 @@ npm-shrinkwrap.json
 *.sqlite-*
 *.db
 .env
+# Never commit Codex/ChatGPT subscription auth (secret) — defensive, beyond runs/
+**/auth.json
+**/codex-home/
+**/codex-auth*.json
+.codex/
 .DS_Store

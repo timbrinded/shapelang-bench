@@ -1,0 +1,6 @@
+[submodule "external/code-review-benchmark"]
+	path = external/code-review-benchmark
+	url = https://github.com/withmartian/code-review-benchmark
+[submodule "external/shapelang"]
+	path = external/shapelang
+	url = https://github.com/timbrinded/shapelang

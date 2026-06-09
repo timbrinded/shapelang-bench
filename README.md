@@ -67,3 +67,19 @@ benchmark results.
 
 See `docs/methodology.md` and `EXPERIMENTS.md` for the current interpretation of
 the local experiments.
+
+## Code-Review Benchmark (Martian)
+
+A separate, two-phase benchmark measures whether Shape improves AI **code
+review**, scored by the independent open-source **Martian Code Review Bench** so
+results are directly comparable to CodeRabbit, Bugbot, Greptile, Qodo, and
+others. Phase 1 indexes a PR's project into a Shape model (preparation, cached,
+not scored); Phase 2 runs a Shape-aware review agent (the only scored phase),
+comparing a `baseline` reviewer against a `shape` reviewer. Start with the
+end-to-end gate:
+
+```bash
+bun run review:smoke
+```
+
+See `docs/review-benchmark.md` for the full workflow and prerequisites.

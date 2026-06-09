@@ -8,7 +8,17 @@
     "calibrate": "bun src/calibrate.ts",
     "summarize": "bun src/summarize.ts",
     "typecheck": "tsc --noEmit",
-    "check": "bun run typecheck && bun run generate && bun run calibrate"
+    "check": "bun run typecheck && bun run generate && bun run calibrate",
+    "review:build-shp": "bash review-bench/scripts/build-shp.sh",
+    "review:smoke": "bun review-bench/smoke.ts",
+    "review:suite": "bun review-bench/run-suite.ts",
+    "review:trials": "bun review-bench/run-trials.ts",
+    "review:full": "bun review-bench/run-full.ts",
+    "review:fanout": "bun review-bench/run-fanout.ts",
+    "review:index": "bun review-bench/index-shapes.ts",
+    "review:run": "bun review-bench/run-review.ts",
+    "review:score": "bun review-bench/score.ts",
+    "review:summarize": "bun review-bench/summarize-review.ts"
   },
   "devDependencies": {
     "@types/bun": "latest",
