@@ -21,7 +21,7 @@ nothing here touches that flow.
   the F1 delta isolates Shape's effect.
 
 Both phases run the **real shapelang skills**. The prompts are assembled from
-`skills/shape-index/SKILL.md` and `skills/shape-review/SKILL.md` (our authored
+`review-bench/skills/shape-index/SKILL.md` and `review-bench/skills/shape-review/SKILL.md` (our authored
 extensions) plus the upstream `external/shapelang/skill/shape-lang/SKILL.md` and
 its `references/`, inlined verbatim. These skills are the thing we optimize: if a
 score is low, edit the skill and re-run Phase 2. If editing the skill cannot move
@@ -60,7 +60,7 @@ changed candidates. Results live in `results/<judge-model>/` (e.g.
 - The `shp` CLI, built from the vendored shapelang branch (`external/shapelang`)
   into a self-contained binary with bundled tree-sitter parsers:
   `bun install --cwd external/shapelang` once, then `bun run review:build-shp`.
-  The binary (`external/shp-build/shp`) works offline — no parser download, no
+  The binary (`review-bench/artifacts/shp-build/shp`) works offline — no parser download, no
   `SHP_TREE_SITTER_ASSET_ROOT`. Re-run `review:build-shp` after pulling new
   shapelang fixes onto the branch.
 - No LLM API key is required for the default `codex` judge. (Only the optional
@@ -91,13 +91,13 @@ bun run review:score --condition shape    --model gpt-5.5
 bun run review:summarize --model gpt-5.5
 ```
 
-Iterate by editing `skills/shape-review/SKILL.md` and re-running Phase 2 + score;
+Iterate by editing `review-bench/skills/shape-review/SKILL.md` and re-running Phase 2 + score;
 the Phase-1 index stays cached.
 
 ## Smoke test (the end-to-end gate)
 
 `bun run review:smoke` runs the full chain Phase 1 → Phase 2 → score → summarize
-against tiny fixtures (`fixtures/review-smoke/`) with a deterministic stub judge,
+against tiny fixtures (`review-bench/fixtures/review-smoke/`) with a deterministic stub judge,
 and asserts the oracle: shape = 1 TP / 1 FP / 0 FN → **precision 0.5, recall 1.0,
 F1 0.667**, with baseline strictly lower. It needs no network or model, so it
 proves the plumbing and the scoring math before any real run. `--live` exercises

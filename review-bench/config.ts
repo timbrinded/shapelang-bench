@@ -1,21 +1,28 @@
-import { joinPath, pathFromImport } from "../bun-utils.ts";
+import { joinPath, pathFromImport } from "../src/bun-utils.ts";
 
-// src/review/config.ts -> repo root is two directories up.
-export const repoRoot = pathFromImport(import.meta.url, "../..");
+// review-bench/config.ts: "." resolves to review-bench/, ".." to the repo root
+// (pathFromImport resolves relative to the file's directory).
+export const reviewBenchRoot = pathFromImport(import.meta.url, ".");
+export const repoRoot = pathFromImport(import.meta.url, "..");
 
+// External deps (git submodules) stay at the repo root.
 export const externalDir = joinPath(repoRoot, "external");
 export const martianRoot = joinPath(externalDir, "code-review-benchmark");
 export const martianOffline = joinPath(martianRoot, "offline");
 export const shapelangRoot = joinPath(externalDir, "shapelang");
-// `shp` is the self-contained binary built from the shapelang branch by
-// scripts/build-shp.sh (bundled tree-sitter parsers; works offline, no env).
-export const shpBin = joinPath(externalDir, "shp-build", "shp");
 export const shapelangSkillDir = joinPath(shapelangRoot, "skill", "shape-lang");
 
-export const skillsDir = joinPath(repoRoot, "skills");
-export const indexCacheDir = joinPath(repoRoot, "index");
-export const reviewRunsDir = joinPath(repoRoot, "runs", "review");
-export const smokeFixturesDir = joinPath(repoRoot, "fixtures", "review-smoke");
+// Skills + fixtures live in the benchmark folder; generated/experimental data
+// (built binary, cache, runs/logs, variants) lives under review-bench/artifacts/.
+export const skillsDir = joinPath(reviewBenchRoot, "skills");
+export const artifactsDir = joinPath(reviewBenchRoot, "artifacts");
+// `shp` is the self-contained binary built from the shapelang branch by
+// scripts/build-shp.sh (bundled tree-sitter parsers; works offline, no env).
+export const shpBin = joinPath(artifactsDir, "shp-build", "shp");
+export const variantsDir = joinPath(artifactsDir, "variants");
+export const indexCacheDir = joinPath(artifactsDir, "index");
+export const reviewRunsDir = joinPath(artifactsDir, "runs");
+export const smokeFixturesDir = joinPath(reviewBenchRoot, "fixtures", "review-smoke");
 
 export const bunBin = Bun.env.BUN_BIN ?? "bun";
 

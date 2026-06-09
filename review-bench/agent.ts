@@ -5,7 +5,7 @@ import {
   runProcess,
   writeText,
   type CommandResult,
-} from "../bun-utils.ts";
+} from "../src/bun-utils.ts";
 
 // Run a Codex agent with an isolated HOME/CODEX_HOME, mirroring src/run-codex.ts.
 // Used by Phase 1 (indexing) and Phase 2 (review). The prompt is the assembled

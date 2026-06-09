@@ -1,4 +1,4 @@
-import { parseArgs } from "../bun-utils.ts";
+import { parseArgs } from "../src/bun-utils.ts";
 import { realContext } from "./context.ts";
 import { loadBenchmarkData } from "./martian.ts";
 import { listPrs } from "./prs.ts";

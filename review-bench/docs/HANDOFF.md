@@ -1,7 +1,7 @@
 # Shape Code-Review Skill Optimization — Handoff
 
 **Read this first.** It is the single source of truth for resuming the optimization loop in
-a fresh thread. Companion files: `docs/golden-goose-log.md` (full research history) and the
+a fresh thread. Companion files: `review-bench/docs/golden-goose-log.md` (full research history) and the
 auto-memory (`fanout-optimization-loop`, `reviewer-model-migration`, `review-benchmark-direction`).
 
 Last updated: 2026-06-07. Branch: `review-benchmark` (harness changes are **uncommitted**).
@@ -25,7 +25,7 @@ supported.)
 
 ## 1. TL;DR — RESOLVED (2026-06-08)
 
-- **SHIPPED: `v15-human-salience-gate` → `skills/shape-review/SKILL.md`** (body byte-identical).
+- **SHIPPED: `v15-human-salience-gate` → `review-bench/skills/shape-review/SKILL.md`** (body byte-identical).
   Best generalized, non-overfit result at **n=3**: **+8.4 F1 overall** vs the same-model
   `gpt-5.5` baseline (validated end-to-end on indexes re-authored with the shipped broadened
   `shape-index` skill; 35.4% → 43.8%), **positive in ALL FIVE repos**, clearing +10 where Shape
@@ -35,7 +35,7 @@ supported.)
   broadened `shape-index` skill (layer2Only) + v15 re-run at n=3 → reproduces the headline; the
   broadened index helped grafana and didn't crater the local repos. The sentry-greptile point
   estimate swung +8.6→+2.7 across two independent n=3 samples on the SAME index — a live
-  demonstration of the 4-PR wide-CI caveat. Full table in `docs/golden-goose-log.md`.
+  demonstration of the 4-PR wide-CI caveat. Full table in `review-bench/docs/golden-goose-log.md`.
 - **The literal goal "+10 in EVERY repo" is structurally INFEASIBLE without overfitting** —
   PROVEN at n=3, not a tuning failure. The per-repo ceiling tracks the fraction of cross-object
   golden bugs: grafana 32% / sentry 26% clear +10; cal.com 26% (+8.1), sentry-greptile 15%
@@ -43,7 +43,7 @@ supported.)
   bug-dominated repos (disc 89% local, sg 85% local) give it nothing to add. Index enrichment of
   sg (3→25 invariants) moved nothing — confirming a bug-distribution ceiling. **n=1 screening was
   noise-dominated** (v13 disc +10.3→−0.3, v6 cal +13.4→+1.6 at n=3); trust only n=3.
-- **Full final n=3 table + the three-way proof are in `docs/golden-goose-log.md` (FINAL verdict).**
+- **Full final n=3 table + the three-way proof are in `review-bench/docs/golden-goose-log.md` (FINAL verdict).**
 - Untested levers (reasoning-effort bump; cal.com index enrichment) could at most nudge cal/sg
   and cannot break discourse's structural ceiling. User accepted "ship v15 + honest report."
 - **Harness was silently corrupting/stalling runs; three bugs fixed first** (judge cache-poisoning,
@@ -66,12 +66,12 @@ supported.)
    ```
    bun run review:fanout --variants v14-recall-precision-synthesis,v15-human-salience-gate,v16-invariant-anchored --trials 1 --concurrency 6
    ```
-   Run in the background; it writes `runs/review/screen-r2.log` and prints a per-variant
+   Run in the background; it writes `review-bench/artifacts/runs/screen-r2.log` and prints a per-variant
    leaderboard vs the fixed baseline.
 3. **Sanity-check it didn't silently rate-limit again** (see §7 gotcha): after it finishes,
    confirm reviews are non-empty:
    ```
-   grep -lc "usage limit" runs/review/review-var-*/codex-stderr.txt | head
+   grep -lc "usage limit" review-bench/artifacts/runs/review-var-*/codex-stderr.txt | head
    ```
    If any review.json is empty / stderr says "usage limit", the scores are garbage — scrub and
    rerun (see §7).
@@ -82,12 +82,12 @@ supported.)
 ## 3. The harness (how to run anything)
 
 All commands run from repo root with `bun`. Reviewer + judge model = **`gpt-5.5`** (Codex on
-subscription; no API key). Indexes are prebuilt and cached in `index/` (one per repo) — do NOT
+subscription; no API key). Indexes are prebuilt and cached in `review-bench/artifacts/index/` (one per repo) — do NOT
 rebuild unless improving the index skill (§6).
 
 | command | what it does |
 |---|---|
-| `bun run review:fanout [--variants a,b] [--trials N] [--per-repo K] [--concurrency C] [--prs ...]` | **The main loop.** Benchmarks every `skills/shape-review/variants/<id>.md` (or the `--variants` subset) in one sweep; per-variant leaderboard (overall F1 + per-repo Δ) vs the fixed baseline. Reuses cached baseline + index. |
+| `bun run review:fanout [--variants a,b] [--trials N] [--per-repo K] [--concurrency C] [--prs ...]` | **The main loop.** Benchmarks every `review-bench/artifacts/variants/<id>.md` (or the `--variants` subset) in one sweep; per-variant leaderboard (overall F1 + per-repo Δ) vs the fixed baseline. Reuses cached baseline + index. |
 | `bun run review:full --conditions baseline --trials 3 --concurrency 6` | Regenerate the FIXED baseline control (only needed if the model changes again). |
 | `bun run typecheck` | tsc. Run before/after editing harness TS. |
 
@@ -95,14 +95,14 @@ rebuild unless improving the index skill (§6).
 `--prs cal.com,grafana` filters by repo/number; `--trials N` = n per variant.
 
 **How isolation works (why parallel variants are safe):** each (variant × PR × trial) review
-runs in its own dir under `runs/review/review-var-<id>-<repo>-<pr>/` with no shared writes.
+runs in its own dir under `review-bench/artifacts/runs/review-var-<id>-<repo>-<pr>/` with no shared writes.
 Then inject + score happen **serially** per tool (they touch shared
 `external/code-review-benchmark/offline/results/{benchmark_data.json, gpt-5.5/candidates.json,
 gpt-5.5/evaluations.json}`). Tool naming: `shapelang-<variantId>-t<trial>`. Baseline =
 `shapelang-baseline-t<1..3>` (reused). The supported-PR universe (34) is derived from PRs the
 baseline already covers.
 
-**Source files (all under `src/review/`):**
+**Source files (all under `review-bench/`):**
 - `run-fanout.ts` — the fan-out harness (NEW; the engine of this loop).
 - `run-review.ts` — `realReviewVariant(ctx, pr, {id, skillText})` runs one variant review.
 - `skill-prompt.ts` — `buildReviewPrompt(pr, diff, condition, skillBody?)`; baseline reviewer
@@ -127,7 +127,7 @@ baseline already covers.
 | sentry-greptile | 34.7% | 44.7% |
 | OVERALL | 35.4% | — |
 
-### Round-1 screen (8 variants, n=1, Δ F1 pts vs baseline) — `runs/review/screen-r1.log`
+### Round-1 screen (8 variants, n=1, Δ F1 pts vs baseline) — `review-bench/artifacts/runs/screen-r1.log`
 | variant | overall | cal | disc | grafana | sentry | sg |
 |---|---|---|---|---|---|---|
 | **v13 recall-first + closed-list gate** | **+11.3** | +5.8 | +10.3 | +26.7 | +16.9 | −2.7 |
@@ -152,9 +152,9 @@ precision-bound.
 
 ## 5. The saved skills/strategies (the optimization target)
 
-The shipped skill is `skills/shape-review/SKILL.md` (currently the **old v5** — NOT updated yet;
+The shipped skill is `review-bench/skills/shape-review/SKILL.md` (currently the **old v5** — NOT updated yet;
 promote the confirmed winner here once chosen). All candidate strategies live in
-**`skills/shape-review/variants/<id>.md`**, each a complete, self-contained shape-review skill
+**`review-bench/artifacts/variants/<id>.md`**, each a complete, self-contained shape-review skill
 body. Authored via a Workflow (one agent per strategy + a distinctness/refine pass).
 
 | id | mechanism (one line) | round-1 |
@@ -204,7 +204,7 @@ recall is the foundation (never shortchanged); exact `./review.json` output cont
    | sentry-greptile | 13,729 | **3** | **261** | 49 | −2.7 ❌ |
    The failing repos have the thinnest authored layer relative to size. sentry-greptile: 3 files /
    261 lines over a 13,729-file codebase → most PRs touch code with **no Shape grounding**. →
-   **Round-3 lever:** improve `skills/shape-index/SKILL.md` to author BROAD, comprehensive
+   **Round-3 lever:** improve `review-bench/skills/shape-index/SKILL.md` to author BROAD, comprehensive
    invariant coverage across all architecture-significant subsystems, then re-index sg (and cal).
    **CRITICAL anti-overfit rule:** author invariants from the codebase architecture generally —
    NEVER target the benchmark PRs' changed files. Re-indexing is expensive (Phase-1 agent over a
@@ -229,7 +229,7 @@ recall is the foundation (never shortchanged); exact `./review.json` output cont
   no `review.json` is written AND there is no last message (tagged `[USAGE-LIMIT/MODEL]` when
   stderr matches), so the worker's retry/FAIL path triggers honestly. A genuine "no bugs" result
   still writes `{"comments": []}` and is unaffected. Still worth a belt-and-suspenders check after
-  big runs: `grep -l "usage limit" runs/review/review-var-*/codex-stderr.txt`.
+  big runs: `grep -l "usage limit" review-bench/artifacts/runs/review-var-*/codex-stderr.txt`.
 - **Scrubbing bad tool data** from the 3 shared JSONs (template — adjust the `v14/v15/v16` list):
   a Python snippet that deletes matching `shapelang-<id>-t*` keys from
   `results/gpt-5.5/evaluations.json`, `results/gpt-5.5/candidates.json`, and the `reviews` arrays
@@ -257,7 +257,7 @@ recall is the foundation (never shortchanged); exact `./review.json` output cont
 4. If **cal.com** still < +10: push precision via the v6/v12 mechanisms folded into the v13
    chassis, and/or test a reasoning-effort bump (both arms).
 5. Once a single generalized variant clears +10 in every repo at n=3 (with the small-repo CI
-   caveat), **promote it to `skills/shape-review/SKILL.md`**, update `docs/golden-goose-log.md`,
+   caveat), **promote it to `review-bench/skills/shape-review/SKILL.md`**, update `review-bench/docs/golden-goose-log.md`,
    and report pooled F1 + per-repo deltas + the published-leaderboard comparison.
 
 **Anti-overfitting protocol (enforce every round):** fixed baseline control (never edit
@@ -269,14 +269,14 @@ architecture, never from the golden bugs or PR diffs.
 
 ## 9. File map
 
-- `skills/shape-review/SKILL.md` — shipped skill (old v5; promote winner here).
-- `skills/shape-review/variants/*.md` — all candidate strategies (v6–v16).
-- `skills/shape-index/SKILL.md` — Phase-1 index-authoring skill (improve for §6 round 3).
-- `src/review/*.ts` — harness (see §3).
-- `index/<repo>/` — cached Shape index per repo (AST layer + authored invariants).
-- `runs/review/` — per-run artifacts + logs (`screen-r1.log`, `baseline-gpt55.log`, …) +
+- `review-bench/skills/shape-review/SKILL.md` — shipped skill (old v5; promote winner here).
+- `review-bench/artifacts/variants/*.md` — all candidate strategies (v6–v16).
+- `review-bench/skills/shape-index/SKILL.md` — Phase-1 index-authoring skill (improve for §6 round 3).
+- `review-bench/*.ts` — harness (see §3).
+- `review-bench/artifacts/index/<repo>/` — cached Shape index per repo (AST layer + authored invariants).
+- `review-bench/artifacts/runs/` — per-run artifacts + logs (`screen-r1.log`, `baseline-gpt55.log`, …) +
   `fanout-*.json` machine-readable leaderboards.
 - `external/code-review-benchmark/offline/results/` — Martian dataset; `benchmark_data.json`,
   `gpt-5.5/{candidates,evaluations,judge-cache}.json`, published-tool numbers in
   `openai_gpt-5.2/evaluations.json`.
-- `docs/golden-goose-log.md` — full research log. `docs/HANDOFF.md` — this file.
+- `review-bench/docs/golden-goose-log.md` — full research log. `review-bench/docs/HANDOFF.md` — this file.

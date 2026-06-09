@@ -5,7 +5,7 @@ import {
   runProcess,
   writeJson,
   type CommandResult,
-} from "../bun-utils.ts";
+} from "../src/bun-utils.ts";
 import type { BenchmarkData, CandidatesFile, ReviewComment } from "./types.ts";
 
 export function sanitizeModelName(model: string): string {

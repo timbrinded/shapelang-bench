@@ -98,7 +98,7 @@ The FIXED baseline was regenerated with `gpt-5.5` (same reviewer as variants →
 delta). Reviews run at Codex default reasoning (`agent.ts` passes `--ignore-user-config`).
 
 ## New engine: `bun run review:fanout`
-`src/review/run-fanout.ts` benchmarks every `skills/shape-review/variants/<id>.md` in ONE
+`review-bench/run-fanout.ts` benchmarks every `review-bench/artifacts/variants/<id>.md` in ONE
 sweep — variant×PR×trial reviews run concurrently (isolated run dirs), then serial
 inject+score per tool, then a per-variant leaderboard (overall F1 + per-repo Δ vs the
 fixed baseline). Flags: `--variants --prs --trials --per-repo --concurrency`. Variant
@@ -154,7 +154,7 @@ from "real" to "salient".
   (sentry 78 inv / grafana 57 → win; cal.com 32 & sentry-greptile 3 files/261 lines over
   13.7k generated → fail). sentry-greptile is starved of grounding → round-3 lever is to
   enrich the index (broadly, NOT PR-targeted), not just the review skill.
-- **Resume guide: `docs/HANDOFF.md`** (single source of truth for a fresh thread).
+- **Resume guide: `review-bench/docs/HANDOFF.md`** (single source of truth for a fresh thread).
 
 ## Standing best (n=1, vs gpt-5.5 baseline)
 `v13-recall-first-verify` = **+11.3 overall** (35.4%→46.7%). Clears +10 in grafana/sentry/
@@ -262,7 +262,7 @@ The validated, reproducible figure for the shipped skills is **+8.4 F1 overall**
 consistent broadened-skill indexes.
 
 **Outcome (user decision 2026-06-08: "ship v15 + honest report").** Promoted
-`v15-human-salience-gate` → `skills/shape-review/SKILL.md` (body byte-identical). It is the
+`v15-human-salience-gate` → `review-bench/skills/shape-review/SKILL.md` (body byte-identical). It is the
 best GENERALIZED, non-overfit result: **+8.7 F1 overall (35.4%→44.1%), positive in ALL FIVE
 repos, +10 where Shape structurally can (grafana, sentry).** ~3× the prior best (old v2 +2.8).
 Mechanism: exhaustive local recall (prune nothing) → cited cross-object augment → closed-list

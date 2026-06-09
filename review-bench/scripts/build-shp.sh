@@ -5,9 +5,12 @@
 # Re-run this after pulling new shapelang fixes onto the branch.
 set -euo pipefail
 
-ROOT="$(cd "$(dirname "$0")/.." && pwd)"
-SL="$ROOT/external/shapelang"
-OUT="$ROOT/external/shp-build"
+# review-bench/scripts/ -> bench root is one up, repo root (for the submodule) is two up.
+SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
+BENCH_ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
+REPO_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
+SL="$REPO_ROOT/external/shapelang"          # vendored submodule stays at repo root
+OUT="$BENCH_ROOT/artifacts/shp-build"       # built binary lives with the other artifacts
 
 if ! command -v zstd >/dev/null 2>&1; then
   echo "error: zstd is required to extract tree-sitter parser bundles" >&2

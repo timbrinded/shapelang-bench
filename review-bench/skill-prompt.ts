@@ -1,4 +1,4 @@
-import { exists, joinPath, readText } from "../bun-utils.ts";
+import { exists, joinPath, readText } from "../src/bun-utils.ts";
 import { shapelangSkillDir, skillsDir } from "./config.ts";
 import type { PrSpec, ReviewComment } from "./types.ts";
 

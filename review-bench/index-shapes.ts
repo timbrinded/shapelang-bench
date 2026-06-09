@@ -9,7 +9,7 @@ import {
   runProcess,
   writeJson,
   writeText,
-} from "../bun-utils.ts";
+} from "../src/bun-utils.ts";
 import { realContext, type ReviewContext } from "./context.ts";
 import { shpBin } from "./config.ts";
 import { loadBenchmarkData } from "./martian.ts";

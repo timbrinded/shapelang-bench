@@ -1,9 +1,9 @@
 runs/*
 !runs/.gitkeep
-# Phase-1 Shape index cache and clones (review benchmark)
-index/
-# shp CLI built from the shapelang branch (scripts/build-shp.sh)
-external/shp-build/
+# Review-benchmark generated artifacts (review-bench/artifacts/); variants/ is committed.
+review-bench/artifacts/runs/
+review-bench/artifacts/index/
+review-bench/artifacts/shp-build/
 node_modules/
 bun.lock
 package-lock.json

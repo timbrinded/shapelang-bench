@@ -1,4 +1,4 @@
-import { exists, joinPath, parseArgs, readJson, writeJson } from "../bun-utils.ts";
+import { exists, joinPath, parseArgs, readJson, writeJson } from "../src/bun-utils.ts";
 import { realContext } from "./context.ts";
 import { reviewConditions, toolName } from "./config.ts";
 import {

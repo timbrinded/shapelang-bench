@@ -7,7 +7,7 @@ import {
   readJson,
   tempDir,
   writeJson,
-} from "../bun-utils.ts";
+} from "../src/bun-utils.ts";
 import { realContext, type ReviewContext } from "./context.ts";
 import { smokeFixturesDir, toolName } from "./config.ts";
 import { benchmarkDataPath, loadBenchmarkData, modelDir } from "./martian.ts";

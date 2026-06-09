@@ -16,7 +16,9 @@
 set -u
 log="${1:?usage: watch-run.sh <log-path> [stall-minutes]}"
 stall_polls=$(( ${2:-8} * 2 ))   # polls are 30s
-cd "$(dirname "$0")/.." || exit 2
+# review-bench/scripts/ -> cd up TWO to the repo root, where external/ (the Martian
+# submodule) lives; log paths are passed relative to the repo root by callers.
+cd "$(dirname "$0")/../.." || exit 2
 cache="external/code-review-benchmark/offline/results/gpt-5.5/judge-cache.json"
 evals="external/code-review-benchmark/offline/results/gpt-5.5/evaluations.json"
 prev=""; stall=0; polls=0

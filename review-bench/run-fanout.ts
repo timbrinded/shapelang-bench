@@ -6,9 +6,9 @@ import {
   readJson,
   readText,
   writeJson,
-} from "../bun-utils.ts";
+} from "../src/bun-utils.ts";
 import { realContext } from "./context.ts";
-import { skillsDir, toolName } from "./config.ts";
+import { variantsDir, toolName } from "./config.ts";
 import {
   benchmarkDataPath,
   injectTool,
@@ -26,7 +26,7 @@ import type { EvalResult, EvaluationsFile, PrSpec, ReviewComment } from "./types
 // Fan-out harness: benchmark MANY shape-review skill variants in ONE sweep.
 //
 // Each variant is a complete shape-review SKILL.md body under
-//   skills/shape-review/variants/<id>.md
+//   review-bench/artifacts/variants/<id>.md
 // The harness runs every (variant × PR × trial) review concurrently (each in its
 // own run dir, no shared writes), then SERIALLY injects + scores each variant
 // tool (those steps touch shared benchmark_data/candidates/evaluations JSON), and
@@ -49,7 +49,6 @@ const ctx = realContext(args.model ? { reviewerModel: args.model } : {});
 const trials = Number(args.trials ?? 1);
 const perRepo = args["per-repo"] ? Number(args["per-repo"]) : 0;
 const concurrency = Math.max(1, Number(args.concurrency ?? 6));
-const variantsDir = joinPath(skillsDir, "shape-review", "variants");
 
 const pct = (x: number): string => `${(x * 100).toFixed(1)}%`;
 function f1(tp: number, fp: number, fn: number): number {
@@ -144,7 +143,7 @@ prs = samplePerRepo(prs, perRepo);
 
 const variants = await loadVariants();
 if (variants.length === 0) {
-  console.error(`no variants found in ${variantsDir} (create skills/shape-review/variants/<id>.md)`);
+  console.error(`no variants found in ${variantsDir} (create review-bench/artifacts/variants/<id>.md)`);
   process.exit(1);
 }
 const urlSet = new Set(prs.map((p) => p.goldenUrl));

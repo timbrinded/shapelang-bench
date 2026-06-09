@@ -1,4 +1,4 @@
-import { exists, joinPath, parseArgs, readJson, writeJson } from "../bun-utils.ts";
+import { exists, joinPath, parseArgs, readJson, writeJson } from "../src/bun-utils.ts";
 import { realContext, type ReviewContext } from "./context.ts";
 import { reviewConditions, toolName, type ReviewCondition } from "./config.ts";
 import { loadBenchmarkData, modelDir, runUvStep } from "./martian.ts";
