@@ -6,7 +6,7 @@
     "types": ["bun"],
     "allowImportingTsExtensions": true,
     "noEmit": true,
-    "strict": false,
+    "strict": true,
     "skipLibCheck": true
   },
   "include": ["src/**/*.ts", "review-bench/**/*.ts"]

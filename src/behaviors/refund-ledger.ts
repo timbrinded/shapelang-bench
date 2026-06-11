@@ -2,7 +2,7 @@ import { createBehaviorHarness, hasSameMembers, isIsoString, isObject } from "./
 
 const EXPECTED_ASSERTIONS = 37;
 
-export async function runBehaviorTests(baseUrl) {
+export async function runBehaviorTests(baseUrl: string) {
   const { check, request, exception, result } = createBehaviorHarness(
     baseUrl,
     EXPECTED_ASSERTIONS,

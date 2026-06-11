@@ -2,11 +2,11 @@ import { createBehaviorHarness, hasSameMembers, isIsoString, isObject } from "./
 
 const EXPECTED_ASSERTIONS = 39;
 
-function lotQuantities(availability) {
+function lotQuantities(availability: { lots?: { lotCode: string; quantityRemaining: number }[] } | null) {
   return availability?.lots?.map((lot) => `${lot.lotCode}:${lot.quantityRemaining}`) ?? [];
 }
 
-export async function runBehaviorTests(baseUrl) {
+export async function runBehaviorTests(baseUrl: string) {
   const { check, request, exception, result } = createBehaviorHarness(
     baseUrl,
     EXPECTED_ASSERTIONS,
@@ -83,7 +83,7 @@ export async function runBehaviorTests(baseUrl) {
     check(
       "shipment allocates earliest lot first",
       hasSameMembers(
-        shipment.json?.allocations?.map((allocation) => `${allocation.lotCode}:${allocation.quantity}`),
+        shipment.json?.allocations?.map((allocation: { lotCode: string; quantity: number }) => `${allocation.lotCode}:${allocation.quantity}`),
         ["EARLY:4", "LATE:3"],
       ),
     );
