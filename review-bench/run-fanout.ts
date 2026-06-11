@@ -17,6 +17,7 @@ import {
   modelDir,
 } from "./martian.ts";
 import { phase1Index } from "./index-shapes.ts";
+import { assertRealRunPrereqs } from "./preflight.ts";
 import { listPrs } from "./prs.ts";
 import { realReviewVariant, type ReviewVariant } from "./run-review.ts";
 import { scoreToolCodex } from "./score.ts";
@@ -46,6 +47,7 @@ import type { EvalResult, EvaluationsFile, PrSpec, ReviewComment } from "./types
 
 const args = parseArgs();
 const ctx = realContext(args.model ? { reviewerModel: args.model } : {});
+await assertRealRunPrereqs({ needShp: true });
 const trials = Number(args.trials ?? 1);
 const perRepo = args["per-repo"] ? Number(args["per-repo"]) : 0;
 const concurrency = Math.max(1, Number(args.concurrency ?? 6));

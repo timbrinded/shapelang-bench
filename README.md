@@ -23,19 +23,37 @@ generate Express/JavaScript candidates; TypeScript task variants are future work
 Additional task drafts are kept under `tasks/` and `prompts/`, but should be
 treated as controls or quarantine cases until their L0 baselines are stable.
 
-## Requirements
+## Setup
 
-- Bun on `PATH`, or set `BUN_BIN=/path/to/bun`.
-- Run `bun install` once to install the TypeScript checker used by the harness.
-- Codex CLI on `PATH` for agent runs.
-- Shape CLI is optional for now; the current verifier checks generated Shape
-  artifacts structurally rather than invoking `shp`.
+```bash
+bun install                        # toolchain pinned via the committed bun.lock
+git submodule update --init       # ONLY needed for the review benchmark / --live smoke
+cp .env.example .env              # optional — every variable has a working default
+```
+
+Not every command needs every tool. Real review runs fail fast with a
+preflight message listing exactly what to set up.
+
+| Command | Needs |
+| --- | --- |
+| `bun run check` / `bun run typecheck` / `bun test` | Bun only |
+| `bun run review:smoke` | Bun only (hermetic, offline) |
+| `bun src/run-codex.ts …` | Codex CLI on `PATH` (logged in) |
+| `bun run review:build-shp` | submodules, `zstd` |
+| `review:smoke -- --live`, `review:fanout`, `review:full`, `review:trials`, `review:suite` | submodules, built `shp`, `gh` (authed), Codex CLI |
+
+Shape CLI (`shp`) is optional for the decay harness; its verifier checks
+generated Shape artifacts structurally rather than invoking `shp`.
 
 ## Generate Prompts
 
 ```bash
 bun src/generate-prompts.ts
 ```
+
+The root `openapi.yaml` is the original commerce-ledger draft kept for
+reference; the canonical specs are `tasks/<task>/openapi.yaml` (what the
+generator reads).
 
 ## Run Trials
 
@@ -81,5 +99,11 @@ end-to-end gate:
 ```bash
 bun run review:smoke
 ```
+
+With no arguments the smoke is **hermetic** — no network, no model spend, no
+submodules; it proves the plumbing on a fresh clone. `--live` runs one real PR
+through the full rig and needs the submodules, the built `shp`, `gh`, and a
+logged-in Codex CLI. Every real review command runs a preflight first and
+fails with remediation steps when something is missing.
 
 See `docs/review-benchmark.md` for the full workflow and prerequisites.

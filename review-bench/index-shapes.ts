@@ -14,6 +14,7 @@ import { realContext, type ReviewContext } from "./context.ts";
 import { shpBin } from "./config.ts";
 import { loadBenchmarkData } from "./martian.ts";
 import { indexKey, listPrs } from "./prs.ts";
+import { assertRealRunPrereqs } from "./preflight.ts";
 import { runCodexAgent } from "./agent.ts";
 import { buildIndexPrompt } from "./skill-prompt.ts";
 import type { PrSpec } from "./types.ts";
@@ -322,6 +323,7 @@ export async function phase1Index(
 if (import.meta.main) {
   const args = parseArgs();
   const ctx = realContext();
+  await assertRealRunPrereqs({ needShp: true });
   const data = await loadBenchmarkData(ctx.offlineDir);
   const prs = listPrs(data, args.prs ? args.prs.split(",") : undefined);
   const layer2Only = args["layer2-only"] === "true";

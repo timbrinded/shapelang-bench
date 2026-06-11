@@ -9,6 +9,7 @@ import {
   modelDir,
 } from "./martian.ts";
 import { changedSourceFiles, phase1Index } from "./index-shapes.ts";
+import { assertRealRunPrereqs } from "./preflight.ts";
 import { listPrs } from "./prs.ts";
 import { realReview } from "./run-review.ts";
 import { scoreCondition } from "./score.ts";
@@ -21,6 +22,7 @@ import type { EvalResult, EvaluationsFile, ReviewComment } from "./types.ts";
 // the shape skill with --conditions shape.
 const args = parseArgs();
 const ctx = realContext(args.model ? { reviewerModel: args.model } : {});
+await assertRealRunPrereqs({ needShp: true });
 const concurrency = Number(args.concurrency ?? 4);
 const trials = Number(args.trials ?? 1);
 const reindex = args.reindex === "true";

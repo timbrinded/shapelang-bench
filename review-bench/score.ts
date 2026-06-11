@@ -3,6 +3,7 @@ import { realContext, type ReviewContext } from "./context.ts";
 import { reviewConditions, toolName, type ReviewCondition } from "./config.ts";
 import { loadBenchmarkData, modelDir, runUvStep } from "./martian.ts";
 import { evaluateReview, stubMatch, type MatchFn } from "./scoring.ts";
+import { assertRealRunPrereqs } from "./preflight.ts";
 import { ensureJudgeHome, judgePairs, PAIR_DELIMITER } from "./codex-judge.ts";
 import type { CandidatesFile, EvaluationsFile } from "./types.ts";
 
@@ -179,6 +180,7 @@ if (import.meta.main) {
   }
   const judge = (args.judge ?? "codex") as JudgeBackend;
   const ctx = realContext(args.model ? { judgeModel: args.model } : {});
+  await assertRealRunPrereqs({ needShp: false });
   await scoreCondition(ctx, condition, judge);
   console.log(`scored ${toolName(condition)} via ${judge} judge`);
 }

@@ -24,6 +24,7 @@ import {
   modelDir,
 } from "./martian.ts";
 import { indexKey, listPrs } from "./prs.ts";
+import { assertRealRunPrereqs } from "./preflight.ts";
 import { indexDirFor, writeShpShim } from "./index-shapes.ts";
 import { runCodexAgent } from "./agent.ts";
 import { buildReviewPrompt, parseReviewComments } from "./skill-prompt.ts";
@@ -226,6 +227,7 @@ if (import.meta.main) {
     throw new Error(`unknown condition: ${condition}`);
   }
   const ctx = realContext(args.model ? { reviewerModel: args.model } : {});
+  await assertRealRunPrereqs({ needShp: true });
   const data = await loadBenchmarkData(ctx.offlineDir);
   const prs = listPrs(data, args.prs ? args.prs.split(",") : undefined);
   const reviews = await phase2Review(ctx, prs, condition);
