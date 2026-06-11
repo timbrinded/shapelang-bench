@@ -3,6 +3,7 @@ import { realContext } from "./context.ts";
 import { loadBenchmarkData } from "./martian.ts";
 import { listPrs } from "./prs.ts";
 import { phase1Index } from "./index-shapes.ts";
+import { assertRealRunPrereqs } from "./preflight.ts";
 import { phase2Review } from "./run-review.ts";
 import { scoreCondition } from "./score.ts";
 import { summarizeReview } from "./summarize-review.ts";
@@ -13,6 +14,7 @@ import { summarizeReview } from "./summarize-review.ts";
 // `run_in_background` — progress goes to stdout.
 const args = parseArgs();
 const ctx = realContext(args.model ? { reviewerModel: args.model } : {});
+await assertRealRunPrereqs({ needShp: true });
 const data = await loadBenchmarkData(ctx.offlineDir);
 const prs = listPrs(data, args.prs ? args.prs.split(",") : undefined);
 const reindex = args.reindex === "true";

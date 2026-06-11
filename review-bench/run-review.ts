@@ -24,6 +24,7 @@ import {
   modelDir,
 } from "./martian.ts";
 import { indexKey, listPrs } from "./prs.ts";
+import { assertRealRunPrereqs } from "./preflight.ts";
 import { indexDirFor, writeShpShim } from "./index-shapes.ts";
 import { runCodexAgent } from "./agent.ts";
 import { buildReviewPrompt, parseReviewComments } from "./skill-prompt.ts";
@@ -44,12 +45,30 @@ async function smokeReview(condition: ReviewCondition): Promise<ReviewComment[]>
 }
 
 // Fetch the unified PR diff (the reviewer's primary input for both conditions).
-async function prDiff(pr: PrSpec): Promise<string> {
+// Diffs are immutable per PR (the Martian dataset pins merged PRs) and fetched
+// once per sweep via an on-disk cache — a fan-out otherwise re-fetches the same
+// diff per (variant × trial). A failed fetch must THROW: an empty diff reviews
+// as a plausible "no bugs" and scores a fake 0 — the same silent-corruption
+// class as the usage-limit trap guarded in runOneAgent below.
+async function prDiff(ctx: ReviewContext, pr: PrSpec): Promise<string> {
+  const cachePath = joinPath(ctx.runsDir, "diff-cache", `${pr.repoName}-${pr.prNumber}.diff`);
+  if (await exists(cachePath)) {
+    const cached = await readText(cachePath);
+    if (cached.trim()) return cached;
+  }
   const diffResult = await runProcess("gh", ["pr", "diff", String(pr.prNumber), "--repo", pr.repo], {
     cwd: ".",
     env: { ...Bun.env, PATH: Bun.env.PATH ?? "" },
     timeoutMs: 120_000,
   });
+  if (diffResult.code !== 0 || !diffResult.stdout.trim()) {
+    const err = diffResult.stderr.trim().slice(-300).replace(/\s+/g, " ");
+    throw new Error(
+      `gh pr diff failed for ${pr.repo}#${pr.prNumber} [GH-DIFF] ` +
+        `(code=${diffResult.code}${diffResult.timedOut ? ",timedOut" : ""}; stderr: ${err})`,
+    );
+  }
+  await writeText(cachePath, diffResult.stdout);
   return diffResult.stdout;
 }
 
@@ -62,7 +81,7 @@ export async function realReview(
   condition: ReviewCondition,
   trial?: number,
 ): Promise<ReviewComment[]> {
-  const diff = await prDiff(pr);
+  const diff = await prDiff(ctx, pr);
   // Single integrated call per condition (the v2 architecture — splitting into
   // separate add/drop passes backfired). Shape mounts the model at ./shape.
   // The trial MUST be in the tag: concurrent trials of the same (pr,condition)
@@ -84,7 +103,7 @@ export async function realReviewVariant(
   variant: ReviewVariant,
   trial?: number,
 ): Promise<ReviewComment[]> {
-  const diff = await prDiff(pr);
+  const diff = await prDiff(ctx, pr);
   const prompt = await buildReviewPrompt(pr, diff, "shape", variant.skillText);
   // Trial in the tag → unique runDir per (variant,pr,trial). Without it, concurrent
   // trials of the same (variant,pr) share a runDir and race on the ./shape copy,
@@ -150,7 +169,18 @@ async function runOneAgent(
         `${rateLimited ? " [USAGE-LIMIT/MODEL]" : ""} (code=${codex.code}${codex.timedOut ? ",timedOut" : ""}; stderr: ${tail})`,
     );
   }
-  return parseReviewComments(raw);
+  const comments = parseReviewComments(raw);
+  if (comments === null) {
+    // A present-but-unparseable review.json (or garbage last message) is a
+    // crashed/truncated run. Recording it as [] would score a fake 0 — throw so
+    // the caller's retry/FAIL path fires instead.
+    const source = haveFile ? "review.json" : "last message";
+    throw new Error(
+      `${tag} ${pr.repoName}#${pr.prNumber}: ${source} is not parseable JSON ` +
+        `(${raw.trim().slice(0, 120).replace(/\s+/g, " ")}…) — treating as failed run, not an empty review`,
+    );
+  }
+  return comments;
 }
 
 
@@ -197,6 +227,7 @@ if (import.meta.main) {
     throw new Error(`unknown condition: ${condition}`);
   }
   const ctx = realContext(args.model ? { reviewerModel: args.model } : {});
+  await assertRealRunPrereqs({ needShp: true });
   const data = await loadBenchmarkData(ctx.offlineDir);
   const prs = listPrs(data, args.prs ? args.prs.split(",") : undefined);
   const reviews = await phase2Review(ctx, prs, condition);

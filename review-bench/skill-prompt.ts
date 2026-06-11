@@ -156,12 +156,15 @@ export async function buildShapeAugmentPrompt(
 }
 
 // Parse the agent's review.json (tolerant of a bare array or a {comments:[...]}).
-export function parseReviewComments(raw: string): ReviewComment[] {
+// Returns null when the text is not a review AT ALL (crash/truncation/prose) —
+// callers must treat that as a FAILED run, never as an empty review. [] is
+// reserved for a genuine "no defects" result ({"comments": []} or a bare []).
+export function parseReviewComments(raw: string): ReviewComment[] | null {
   let data: unknown;
   try {
     data = JSON.parse(raw);
   } catch {
-    return [];
+    return null;
   }
   const list = Array.isArray(data)
     ? data

@@ -8,6 +8,7 @@
     "calibrate": "bun src/calibrate.ts",
     "summarize": "bun src/summarize.ts",
     "typecheck": "tsc --noEmit",
+    "test": "bun test",
     "check": "bun run typecheck && bun run generate && bun run calibrate",
     "review:build-shp": "bash review-bench/scripts/build-shp.sh",
     "review:smoke": "bun review-bench/smoke.ts",
@@ -21,7 +22,7 @@
     "review:summarize": "bun review-bench/summarize-review.ts"
   },
   "devDependencies": {
-    "@types/bun": "latest",
+    "@types/bun": "1.3.14",
     "typescript": "^5.9.3"
   }
 }

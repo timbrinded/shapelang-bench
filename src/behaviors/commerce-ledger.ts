@@ -11,7 +11,7 @@ function bySku(products: any, sku: string) {
 }
 
 function byLineSku(order: any, sku: string) {
-  return Array.isArray(order?.items) ? order.items.find((line) => line.sku === sku) : null;
+  return Array.isArray(order?.items) ? order.items.find((line: { sku?: string }) => line.sku === sku) : null;
 }
 
 const EXPECTED_ASSERTIONS = 64;
@@ -258,7 +258,8 @@ export async function runBehaviorTests(baseUrl: string) {
     const missingOrder = await request("GET", "/api/orders/missing-order", undefined, ada.json.token);
     check("missing order returns 404", missingOrder.response.status === 404);
   } catch (error) {
-    failures.push({ name: "test runner exception", detail: String(error?.stack ?? error) });
+    const detail = error instanceof Error ? (error.stack ?? error.message) : String(error);
+    failures.push({ name: "test runner exception", detail });
     total = Math.max(total, EXPECTED_ASSERTIONS);
   }
 

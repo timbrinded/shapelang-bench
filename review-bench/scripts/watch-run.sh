@@ -19,6 +19,11 @@ stall_polls=$(( ${2:-8} * 2 ))   # polls are 30s
 # review-bench/scripts/ -> cd up TWO to the repo root, where external/ (the Martian
 # submodule) lives; log paths are passed relative to the repo root by callers.
 cd "$(dirname "$0")/../.." || exit 2
+# stat differs: GNU uses -c (%s size, %Y mtime); BSD/macOS uses -f (%z, %m).
+# BSD-only probes silently returned 0 on Linux, freezing the signature and
+# false-alarming STALL on every healthy run.
+fsize() { stat -c %s "$1" 2>/dev/null || stat -f %z "$1" 2>/dev/null || echo 0; }
+fmtime() { stat -c %Y "$1" 2>/dev/null || stat -f %m "$1" 2>/dev/null || echo 0; }
 cache="external/code-review-benchmark/offline/results/gpt-5.5/judge-cache.json"
 evals="external/code-review-benchmark/offline/results/gpt-5.5/evaluations.json"
 prev=""; stall=0; polls=0
@@ -30,10 +35,10 @@ while true; do
   if ! pgrep -f '[r]un-fanout.ts|[r]un-full.ts|[i]ndex-shapes.ts' >/dev/null 2>&1; then
     echo "WATCH: bun process exited — read $log for result or crash"; break
   fi
-  lsz=$(stat -f %z "$log" 2>/dev/null || echo 0)   # log size — grows as ANY run type progresses
-  lmt=$(stat -f %m "$log" 2>/dev/null || echo 0)
-  cm=$(stat -f %m "$cache" 2>/dev/null || echo 0)  # judge cache — grows during fanout scoring
-  em=$(stat -f %m "$evals" 2>/dev/null || echo 0)
+  lsz=$(fsize "$log")    # log size — grows as ANY run type progresses
+  lmt=$(fmtime "$log")
+  cm=$(fmtime "$cache")  # judge cache — grows during fanout scoring
+  em=$(fmtime "$evals")
   sig="$lsz|$lmt|$cm|$em"
   if [ "$sig" = "$prev" ]; then stall=$((stall+1)); else stall=0; fi
   prev="$sig"

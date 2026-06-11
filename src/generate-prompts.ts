@@ -1,13 +1,6 @@
-import {
-  conditions,
-  constraintBlocks,
-  levels,
-  promptsDir,
-  shapeGuidance,
-  taskIds,
-  tasksDir,
-} from "./config.ts";
+import { conditions, constraintBlocks, levels, promptsDir, taskIds, tasksDir } from "./config.ts";
 import { joinPath, readText, writeText } from "./bun-utils.ts";
+import { renderPrompt } from "./prompt-render.ts";
 
 const template = await readText(joinPath(promptsDir, "template.md"));
 let written = 0;
@@ -20,11 +13,13 @@ for (const taskId of taskIds) {
     const conditionDir = joinPath(promptsDir, taskId, condition);
 
     for (const level of levels) {
-      const guidance = condition === "shape" ? `\n\n${shapeGuidance.trim()}` : "";
-      const prompt = template
-        .replace("{{OPENAPI}}", `\`\`\`yaml\n${openApi.trim()}\n\`\`\``)
-        .replace("{{CONSTRAINTS}}", `${constraintBlocks[level].trim()}${guidance}`)
-        .replace("{{TASK_DETAILS}}", details.trim());
+      const prompt = renderPrompt(
+        template,
+        openApi,
+        details,
+        level as keyof typeof constraintBlocks,
+        condition,
+      );
 
       await writeText(joinPath(conditionDir, `${level.toLowerCase()}.md`), prompt);
       if (taskId === "commerce-ledger" && condition === "baseline") {

@@ -10,7 +10,15 @@ import { runBehaviorTests as runStipendAwards } from "./behaviors/stipend-awards
 import { runBehaviorTests as runVoucherIssues } from "./behaviors/voucher-issues.ts";
 import { runBehaviorTests as runWarehouseLots } from "./behaviors/warehouse-lots.ts";
 
-const runners = {
+type BehaviorResult = {
+  assertionsPassed: number;
+  assertionsTotal: number;
+  assertionPassRate: number;
+  failures: { name: string; detail: string }[];
+};
+type BehaviorRunner = (baseUrl: string) => Promise<BehaviorResult>;
+
+const runners: Record<string, BehaviorRunner> = {
   "commerce-ledger": runCommerceLedger,
   "warehouse-lots": runWarehouseLots,
   "coupon-redemptions": runCouponRedemptions,
@@ -24,7 +32,7 @@ const runners = {
   "entitlement-gates": runEntitlementGates,
 };
 
-export async function runBehaviorTests(taskId, baseUrl) {
+export async function runBehaviorTests(taskId: string, baseUrl: string): Promise<BehaviorResult> {
   const runner = runners[taskId];
   if (!runner) {
     return {

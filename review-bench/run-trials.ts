@@ -4,6 +4,7 @@ import { reviewConditions, toolName, type ReviewCondition } from "./config.ts";
 import { loadBenchmarkData, modelDir } from "./martian.ts";
 import { listPrs } from "./prs.ts";
 import { changedSourceFiles, phase1Index } from "./index-shapes.ts";
+import { assertRealRunPrereqs } from "./preflight.ts";
 import { phase2Review } from "./run-review.ts";
 import { scoreCondition } from "./score.ts";
 import type { EvalResult, EvaluationsFile } from "./types.ts";
@@ -13,6 +14,7 @@ import type { EvalResult, EvaluationsFile } from "./types.ts";
 // F1 ± spread per condition — paired per PR. Built for run_in_background.
 const args = parseArgs();
 const ctx = realContext(args.model ? { reviewerModel: args.model } : {});
+await assertRealRunPrereqs({ needShp: true });
 const trials = Number(args.trials ?? 5);
 const reindex = args.reindex === "true";
 const data = await loadBenchmarkData(ctx.offlineDir);

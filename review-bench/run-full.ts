@@ -9,6 +9,7 @@ import {
   modelDir,
 } from "./martian.ts";
 import { changedSourceFiles, phase1Index } from "./index-shapes.ts";
+import { assertRealRunPrereqs } from "./preflight.ts";
 import { listPrs } from "./prs.ts";
 import { realReview } from "./run-review.ts";
 import { scoreCondition } from "./score.ts";
@@ -21,6 +22,7 @@ import type { EvalResult, EvaluationsFile, ReviewComment } from "./types.ts";
 // the shape skill with --conditions shape.
 const args = parseArgs();
 const ctx = realContext(args.model ? { reviewerModel: args.model } : {});
+await assertRealRunPrereqs({ needShp: true });
 const concurrency = Number(args.concurrency ?? 4);
 const trials = Number(args.trials ?? 1);
 const reindex = args.reindex === "true";
@@ -55,18 +57,30 @@ for (const pr of prs)
 
 const byTool = new Map<string, Map<string, ReviewComment[]>>();
 let done = 0;
+let failures = 0;
+// Mirror of run-fanout.ts: when the Codex subscription hits its usage limit,
+// every remaining review fails identically; abort the sweep so a partial run is
+// never injected or presented as a result (this regenerates the FIXED baseline,
+// so silent degradation here would poison every future shape-vs-baseline delta).
+let usageLimitHit = false;
 async function worker(): Promise<void> {
   for (;;) {
+    if (usageLimitHit) return;
     const job = jobs.shift();
     if (!job) return;
     const tool = toolName(job.condition, job.trial);
     let comments: ReviewComment[] | null = null;
-    for (let attempt = 1; attempt <= 2 && comments === null; attempt += 1) {
+    for (let attempt = 1; attempt <= 2 && comments === null && !usageLimitHit; attempt += 1) {
       try {
         comments = await realReview(ctx, job.pr, job.condition, job.trial);
       } catch (error) {
-        if (attempt === 2) {
-          console.error(`  FAIL ${job.pr.repoName}#${job.pr.prNumber} ${tool}: ${(error as Error).message}`);
+        const msg = (error as Error).message;
+        if (/\[USAGE-LIMIT\/MODEL\]/.test(msg)) {
+          if (!usageLimitHit) console.error(`  ABORT: Codex usage limit / model error — stopping sweep.\n  ${msg}`);
+          usageLimitHit = true;
+        } else if (attempt === 2) {
+          failures += 1;
+          console.error(`  FAIL ${job.pr.repoName}#${job.pr.prNumber} ${tool}: ${msg}`);
         }
       }
     }
@@ -79,6 +93,14 @@ async function worker(): Promise<void> {
   }
 }
 await Promise.all(Array.from({ length: Math.max(1, concurrency) }, worker));
+
+if (usageLimitHit) {
+  console.error(
+    `\n=== SWEEP ABORTED (Codex usage limit) — nothing scored, no leaderboard written. ===\n` +
+      `Re-run after the limit resets. Collected ${done}/${jobs.length + done} reviews before aborting.`,
+  );
+  process.exit(2);
+}
 
 // Serial injection (avoids benchmark_data races), then score each tool.
 for (const condition of conditions) {
@@ -146,6 +168,22 @@ rows.push({
   delta: `${((f1(sAll.tp, sAll.fp, sAll.fn) - f1(bAll.tp, bAll.fp, bAll.fn)) * 100).toFixed(1)}`,
 });
 console.table(rows);
+
+// Coverage caveat (mirror of run-fanout.ts): a condition scored on fewer
+// entries than (PRs × trials) ran into review failures — its F1 is NOT
+// comparable and must never be read as a clean result.
+const expectedPerCondition = prs.length * trials;
+const shortfalls = conditions
+  .map((condition) => ({ condition, n: pooled(condition, () => true).n }))
+  .filter(({ n }) => n < expectedPerCondition);
+if (shortfalls.length > 0) {
+  console.warn(
+    `\n⚠️  INCOMPLETE COVERAGE — these conditions were scored on fewer than ${expectedPerCondition} entries ` +
+      `(review failures); their F1 is NOT comparable:\n` +
+      shortfalls.map(({ condition, n }) => `   ${condition}: ${n}/${expectedPerCondition}`).join("\n"),
+  );
+}
+if (failures > 0) console.warn(`\n⚠️  ${failures} review(s) failed (non-usage-limit). See FAIL lines above.`);
 
 // Leaderboard vs published (our tools pooled over trials; published n=1).
 const board: Array<{ tool: string; f1: number; judge: string }> = [];

@@ -41,12 +41,12 @@ export type CodexJudgeOptions = {
   cache: Map<string, boolean>; // persisted verdict cache (by model+pair hash)
 };
 
-function cacheKey(model: string, golden: string, candidate: string): string {
+export function cacheKey(model: string, golden: string, candidate: string): string {
   return `${model}${PAIR_DELIMITER}${Bun.hash(golden + PAIR_DELIMITER + candidate).toString(36)}`;
 }
 
 // Robustly pull the verdict object out of the model's final message.
-function extractVerdict(text: string): { match?: boolean; confidence?: number } | null {
+export function extractVerdict(text: string): { match?: boolean; confidence?: number } | null {
   const trimmed = String(text ?? "").trim();
   if (!trimmed) return null;
   const candidates: string[] = [trimmed];
