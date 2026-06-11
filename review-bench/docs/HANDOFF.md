@@ -4,7 +4,7 @@
 a fresh thread. Companion files: `review-bench/docs/golden-goose-log.md` (full research history) and the
 auto-memory (`fanout-optimization-loop`, `reviewer-model-migration`, `review-benchmark-direction`).
 
-Last updated: 2026-06-07. Branch: `review-benchmark` (harness changes are **uncommitted**).
+Last updated: 2026-06-07 (state notes refreshed 2026-06-11). Branch: `main` — the harness and v15 ship were merged in PR #1 (commit `3cadcc8`).
 
 ---
 
@@ -152,8 +152,8 @@ precision-bound.
 
 ## 5. The saved skills/strategies (the optimization target)
 
-The shipped skill is `review-bench/skills/shape-review/SKILL.md` (currently the **old v5** — NOT updated yet;
-promote the confirmed winner here once chosen). All candidate strategies live in
+The shipped skill is `review-bench/skills/shape-review/SKILL.md` (**v15-human-salience-gate**, promoted
+2026-06-08 — see §1; the variants below are the historical candidate pool). All candidate strategies live in
 **`review-bench/artifacts/variants/<id>.md`**, each a complete, self-contained shape-review skill
 body. Authored via a Workflow (one agent per strategy + a distinctness/refine pass).
 
@@ -269,7 +269,7 @@ architecture, never from the golden bugs or PR diffs.
 
 ## 9. File map
 
-- `review-bench/skills/shape-review/SKILL.md` — shipped skill (old v5; promote winner here).
+- `review-bench/skills/shape-review/SKILL.md` — shipped skill (v15-human-salience-gate, promoted 2026-06-08).
 - `review-bench/artifacts/variants/*.md` — all candidate strategies (v6–v16).
 - `review-bench/skills/shape-index/SKILL.md` — Phase-1 index-authoring skill (improve for §6 round 3).
 - `review-bench/*.ts` — harness (see §3).
