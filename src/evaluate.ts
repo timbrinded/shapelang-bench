@@ -50,7 +50,26 @@ async function startServer(candidateDir: string, port: number): Promise<RunningS
     logs: () => ({ stdout, stderr }),
     stop: async () => {
       child.kill("SIGTERM");
-      await Promise.allSettled([child.exited, stdoutText, stderrText]);
+      const exited = await Promise.race([
+        child.exited.then(() => true),
+        Bun.sleep(10_000).then(() => false),
+      ]);
+      if (!exited) {
+        // Candidate ignored SIGTERM — escalate so an evaluation can never hang
+        // on shutdown (mirrors runProcess in bun-utils.ts).
+        try {
+          child.kill("SIGKILL");
+        } catch {
+          // already gone
+        }
+      }
+      // Same grandchild-pipe hazard as runProcess (bun-utils.ts): a background
+      // child of the candidate can hold stdout/stderr open forever — cap the
+      // drain, take what's buffered, move on.
+      await Promise.race([
+        Promise.allSettled([child.exited, stdoutText, stderrText]),
+        Bun.sleep(15_000),
+      ]);
     },
   };
 }

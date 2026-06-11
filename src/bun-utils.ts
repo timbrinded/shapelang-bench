@@ -64,8 +64,15 @@ export function parseArgs(argv: string[] = Bun.argv.slice(2)): CliArgs {
   for (let index = 0; index < argv.length; index += 1) {
     const value = argv[index];
     if (!value.startsWith("--")) continue;
-    args[value.slice(2)] = argv[index + 1] ?? "true";
-    index += 1;
+    const next = argv[index + 1];
+    if (next === undefined || next.startsWith("--")) {
+      // Bare boolean flag — never consume the next token, or `--a --b v`
+      // would record "--b" as a's value AND silently drop b entirely.
+      args[value.slice(2)] = "true";
+    } else {
+      args[value.slice(2)] = next;
+      index += 1;
+    }
   }
   return args;
 }

@@ -2,6 +2,7 @@ import {
   exists,
   joinPath,
   readText,
+  removePath,
   runProcess,
   writeText,
   type CommandResult,
@@ -66,6 +67,9 @@ export async function runCodexAgent(opts: {
     stdin: opts.prompt,
     timeoutMs: opts.timeoutMs,
   });
+
+  // auth.json is only needed while codex runs; don't leave credential copies in run dirs.
+  if (opts.copyAuth) await removePath(joinPath(codexHome, "auth.json"));
 
   await writeText(joinPath(opts.runDir, "codex-stdout.txt"), codex.stdout);
   await writeText(joinPath(opts.runDir, "codex-stderr.txt"), codex.stderr);

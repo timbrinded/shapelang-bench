@@ -12,6 +12,7 @@ import {
   joinPath,
   parseArgs,
   readText,
+  removePath,
   runProcess,
   writeJson,
   writeText,
@@ -111,6 +112,9 @@ for (const level of selectedLevels) {
       stdin: prompt,
       timeoutMs,
     });
+
+    // auth.json is only needed while codex runs; don't leave credential copies in run dirs.
+    if (shouldCopyAuth) await removePath(joinPath(codexHome, "auth.json"));
 
     await writeText(joinPath(runDir, "codex-stdout.txt"), codex.stdout);
     await writeText(joinPath(runDir, "codex-stderr.txt"), codex.stderr);
