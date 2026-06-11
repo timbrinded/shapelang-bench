@@ -8,6 +8,7 @@
     "calibrate": "bun src/calibrate.ts",
     "summarize": "bun src/summarize.ts",
     "typecheck": "tsc --noEmit",
+    "test": "bun test",
     "check": "bun run typecheck && bun run generate && bun run calibrate",
     "review:build-shp": "bash review-bench/scripts/build-shp.sh",
     "review:smoke": "bun review-bench/smoke.ts",

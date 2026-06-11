@@ -1,5 +1,6 @@
 import { bunBin, defaultPort } from "./config.ts";
 import { runBehaviorTests } from "./behavior.ts";
+import { shouldCopy } from "./eval-hygiene.ts";
 import { verifyCandidate } from "./verify.ts";
 import {
   basename,
@@ -22,16 +23,6 @@ type RunningServer = {
   logs: () => { stdout: string; stderr: string };
   stop: () => Promise<void>;
 };
-
-const ignoredPackageArtifacts = new Set([
-  ".env",
-  ".npmrc",
-  "bun.lock",
-  "package-lock.json",
-  "npm-shrinkwrap.json",
-  "pnpm-lock.yaml",
-  "yarn.lock",
-]);
 
 async function startServer(candidateDir: string, port: number): Promise<RunningServer> {
   const child = Bun.spawn([bunBin, "run", "start"], {
@@ -76,14 +67,6 @@ async function waitForHealth(baseUrl: string, timeoutMs: number): Promise<boolea
     await Bun.sleep(250);
   }
   return false;
-}
-
-function shouldCopy(relative: string): boolean {
-  const parts = relative.split("/");
-  if (parts.includes("node_modules") || parts.includes(".git")) return false;
-  if (ignoredPackageArtifacts.has(basename(relative))) return false;
-  if (/\.(sqlite|sqlite-shm|sqlite-wal|db)$/.test(relative)) return false;
-  return true;
 }
 
 async function createEvaluationDir(sourceDir: string, outPath: string | null): Promise<string> {
